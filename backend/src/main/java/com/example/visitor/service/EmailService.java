@@ -171,8 +171,11 @@ public class EmailService {
             mailSender.send(message);
             System.out.println("✅ OTP email sent to: " + email);
         } catch (Exception e) {
-            System.err.println("❌ Error sending OTP email: " + e.getMessage());
+            System.err.println("❌ SMTP ERROR sending OTP to " + email + ": " + e.getMessage());
+            System.err.println("❌ SMTP cause: " + (e.getCause() != null ? e.getCause().getMessage() : "null"));
             e.printStackTrace();
+            // Re-throw so the controller returns a real error instead of false success
+            throw new RuntimeException("Failed to send OTP email: " + e.getMessage(), e);
         }
     }
 
