@@ -2,6 +2,11 @@
 .DS_Store
 **/.DS_Store
 
+# Large build artifacts - never commit
+*.apk
+*.aab
+*.ipa
+
 # Backend - Local credentials (never commit)
 backend/.env
 backend/src/main/resources/application-local.properties
