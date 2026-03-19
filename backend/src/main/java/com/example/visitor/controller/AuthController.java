@@ -212,8 +212,10 @@ public class AuthController {
             String hashedOTP = passwordEncoder.encode(otp);
             otpStore.put(security.getEmail(), hashedOTP);
             otpTimestamp.put(security.getEmail(), System.currentTimeMillis());
-
-            // Log OTP to console for testing - ENHANCED FORMAT
+            
+            // Send OTP via Email
+            emailService.sendOTP(security.getEmail(), otp, security.getName());
+  // Log OTP to console for testing - ENHANCED FORMAT
             System.out.println("\n" + "=".repeat(70));
             System.out.println("🔐 OTP GENERATED - SECURITY ID LOGIN");
             System.out.println("=".repeat(70));
@@ -270,6 +272,9 @@ public class AuthController {
             String otp = generateOTP();
             otpStore.put(security.getEmail(), otp);
             otpTimestamp.put(security.getEmail(), System.currentTimeMillis());
+            
+            // Send OTP via Email
+            emailService.sendOTP(security.getEmail(), otp, security.getName());
 
             // Log OTP to console for testing - ENHANCED FORMAT
             System.out.println("\n" + "=".repeat(70));
@@ -416,6 +421,9 @@ public class AuthController {
             otpStore.put(student.getEmail(), hashedOTP);
             otpTimestamp.put(student.getEmail(), System.currentTimeMillis());
             
+            // Send OTP via Email
+            emailService.sendOTP(student.getEmail(), otp, student.getFirstName() + " " + student.getLastName());
+            
             // Log OTP to console
             System.out.println("\n" + "=".repeat(70));
             System.out.println("🔐 OTP GENERATED - STUDENT LOGIN");
@@ -535,6 +543,8 @@ public class AuthController {
             otpStore.put(staff.getEmail(), hashedOTP);
             otpTimestamp.put(staff.getEmail(), System.currentTimeMillis());
             
+            // Send OTP via Email
+            emailService.sendOTP(staff.getEmail(), otp, staff.getStaffName());
             // Log OTP to console
             System.out.println("\n" + "=".repeat(70));
             System.out.println("🔐 OTP GENERATED - STAFF LOGIN");
@@ -653,6 +663,8 @@ public class AuthController {
             otpStore.put(hod.getEmail(), hashedOTP);
             otpTimestamp.put(hod.getEmail(), System.currentTimeMillis());
             
+            // Send OTP via Email
+            emailService.sendOTP(hod.getEmail(), otp, hod.getHodName());
             // Log OTP to console
             System.out.println("\n" + "=".repeat(70));
             System.out.println("🔐 OTP GENERATED - HOD LOGIN");
@@ -771,6 +783,8 @@ public class AuthController {
             otpStore.put(hr.getEmail(), hashedOTP);
             otpTimestamp.put(hr.getEmail(), System.currentTimeMillis());
             
+            // Send OTP via Email
+            emailService.sendOTP(hr.getEmail(), otp, hr.getHrName());
             // Log OTP to console
             System.out.println("\n" + "=".repeat(70));
             System.out.println("🔐 OTP GENERATED - HR LOGIN");
