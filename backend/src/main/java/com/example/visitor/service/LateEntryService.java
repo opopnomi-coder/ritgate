@@ -315,7 +315,7 @@ public class LateEntryService {
         // Notify all active HR personnel
         String notifiedTo = "HR Department";
         try {
-            java.util.List<com.example.visitor.entity.HR> hrList = hrRepository.findByIsActive(true);
+            java.util.List<com.example.visitor.entity.HR> hrList = hrRepository.findAll();
             
             for (com.example.visitor.entity.HR hr : hrList) {
                 String message = String.format(

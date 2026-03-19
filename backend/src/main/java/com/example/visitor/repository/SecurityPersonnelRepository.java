@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface SecurityPersonnelRepository extends JpaRepository<SecurityPersonnel, Long> {
+public interface SecurityPersonnelRepository extends JpaRepository<SecurityPersonnel, String> {
 
     // securityId maps to staff_code column
     Optional<SecurityPersonnel> findBySecurityId(String securityId);

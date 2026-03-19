@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface HODRepository extends JpaRepository<HOD, Long> {
+public interface HODRepository extends JpaRepository<HOD, String> {
 
     // hodCode maps to staff_code column
     Optional<HOD> findByHodCode(String hodCode);
@@ -22,5 +22,6 @@ public interface HODRepository extends JpaRepository<HOD, Long> {
     @Query("SELECT h FROM HOD h WHERE LOWER(h.role) LIKE LOWER(CONCAT('%', :role, '%'))")
     List<HOD> findByRoleContaining(@Param("role") String role);
 
-    List<HOD> findByIsActive(Boolean isActive);
+    // isActive is transient — not queryable from DB
+    // List<HOD> findByIsActive(Boolean isActive); // removed
 }

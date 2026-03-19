@@ -1343,10 +1343,10 @@ public class SecurityController {
     @GetMapping("/hods")
     public ResponseEntity<List<HODDTO>> getAllHODs() {
         try {
-            List<HOD> hods = hodRepository.findByIsActive(true);
+            List<HOD> hods = hodRepository.findAll();
             List<HODDTO> hodDTOs = hods.stream()
                 .map(hod -> new HODDTO(
-                    hod.getId(),
+                    hod.getHodCode(),
                     hod.getHodCode(),
                     hod.getHodName(),
                     hod.getEmail(),
@@ -1375,7 +1375,7 @@ public class SecurityController {
             if (activeHod.isPresent()) {
                 HOD hod = activeHod.get();
                 HODDTO hodDTO = new HODDTO(
-                    hod.getId(),
+                    hod.getHodCode(),
                     hod.getHodCode(),
                     hod.getHodName(),
                     hod.getEmail(),
@@ -1395,14 +1395,14 @@ public class SecurityController {
     
     // DTO class for HOD response
     public static class HODDTO {
-        private Long id;
+        private String id;
         private String hodCode;
         private String name;
         private String email;
         private String phone;
         private String department;
         
-        public HODDTO(Long id, String hodCode, String name, String email, String phone, String department) {
+        public HODDTO(String id, String hodCode, String name, String email, String phone, String department) {
             this.id = id;
             this.hodCode = hodCode;
             this.name = name;
@@ -1412,7 +1412,7 @@ public class SecurityController {
         }
         
         // Getters
-        public Long getId() { return id; }
+        public String getId() { return id; }
         public String getHodCode() { return hodCode; }
         public String getName() { return name; }
         public String getEmail() { return email; }

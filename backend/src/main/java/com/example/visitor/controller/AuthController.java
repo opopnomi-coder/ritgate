@@ -334,7 +334,7 @@ public class AuthController {
             
             // OTP verified successfully - use DTO
             UserResponseDTO userDTO = new UserResponseDTO(
-                security.getId(),
+                null,
                 security.getSecurityId(),
                 security.getName(),
                 security.getEmail(),
@@ -482,7 +482,7 @@ public class AuthController {
             
             // OTP verified successfully - use DTO with firstName and lastName
             UserResponseDTO userDTO = new UserResponseDTO(
-                student.getId(),
+                null,
                 student.getRegNo(),
                 student.getFirstName(),
                 student.getLastName(),
@@ -603,7 +603,7 @@ public class AuthController {
             
             // OTP verified successfully - use DTO
             UserResponseDTO userDTO = new UserResponseDTO(
-                staff.getId(),
+                null,
                 staff.getStaffCode(),
                 staff.getStaffName(),
                 staff.getEmail(),
@@ -723,7 +723,7 @@ public class AuthController {
             
             // OTP verified successfully - use DTO
             UserResponseDTO userDTO = new UserResponseDTO(
-                hod.getId(),
+                null,
                 hod.getHodCode(),
                 hod.getHodName(),
                 hod.getEmail(),
@@ -843,7 +843,7 @@ public class AuthController {
             
             // OTP verified successfully - use DTO
             UserResponseDTO userDTO = new UserResponseDTO(
-                hr.getId(),
+                null,
                 hr.getHrCode(),
                 hr.getHrName(),
                 hr.getEmail(),
@@ -1023,7 +1023,7 @@ public class AuthController {
                         return ResponseEntity.status(403).body(createErrorResponse("Account is inactive"));
                     }
                     userDTO = new UserResponseDTO(
-                        student.getId(),
+                        null,
                         student.getRegNo(),
                         student.getFirstName(),
                         student.getLastName(),
@@ -1048,7 +1048,7 @@ public class AuthController {
                         return ResponseEntity.status(403).body(createErrorResponse("Account is inactive"));
                     }
                     userDTO = new UserResponseDTO(
-                        staff.getId(),
+                        null,
                         staff.getStaffCode(),
                         staff.getStaffName(),
                         staff.getEmail(),
@@ -1072,7 +1072,7 @@ public class AuthController {
                         return ResponseEntity.status(403).body(createErrorResponse("Account is inactive"));
                     }
                     userDTO = new UserResponseDTO(
-                        hod.getId(),
+                        null,
                         hod.getHodCode(),
                         hod.getHodName(),
                         hod.getEmail(),
@@ -1096,7 +1096,7 @@ public class AuthController {
                         return ResponseEntity.status(403).body(createErrorResponse("Account is inactive"));
                     }
                     userDTO = new UserResponseDTO(
-                        hr.getId(),
+                        null,
                         hr.getHrCode(),
                         hr.getHrName(),
                         hr.getEmail(),
@@ -1120,7 +1120,7 @@ public class AuthController {
                         return ResponseEntity.status(403).body(createErrorResponse("Account is inactive"));
                     }
                     userDTO = new UserResponseDTO(
-                        security.getId(),
+                        null,
                         security.getSecurityId(),
                         security.getName(),
                         security.getEmail(),

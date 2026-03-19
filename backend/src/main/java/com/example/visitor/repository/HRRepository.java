@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface HRRepository extends JpaRepository<HR, Long> {
+public interface HRRepository extends JpaRepository<HR, String> {
 
     // hrCode maps to staff_code column
     Optional<HR> findByHrCode(String hrCode);
@@ -19,5 +19,6 @@ public interface HRRepository extends JpaRepository<HR, Long> {
 
     boolean existsByEmail(String email);
 
-    List<HR> findByIsActive(boolean isActive);
+    // isActive is transient — not queryable from DB
+    // List<HR> findByIsActive(boolean isActive); // removed
 }

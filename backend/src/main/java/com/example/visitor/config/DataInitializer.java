@@ -158,11 +158,7 @@ public class DataInitializer implements CommandLineRunner {
         vehicle3.setRegisteredBy("Security Guard 2");
         vehicleRegistrationRepository.save(vehicle3);
         
-        // Initialize Security Personnel
-        securityPersonnelRepository.save(new SecurityPersonnel("SEC001", "Rajesh Kumar", "rajesh.security@rit.edu", "9876501001", "SEC001QR", "Main Gate", "Morning"));
-        securityPersonnelRepository.save(new SecurityPersonnel("SEC002", "Priya Sharma", "priya.security@rit.edu", "9876501002", "SEC002QR", "Main Gate", "Evening"));
-        securityPersonnelRepository.save(new SecurityPersonnel("SEC003", "Amit Verma", "amit.security@rit.edu", "9876501003", "SEC003QR", "North Gate", "Morning"));
-        securityPersonnelRepository.save(new SecurityPersonnel("SEC004", "Sunita Patel", "sunita.security@rit.edu", "9876501004", "SEC004QR", "North Gate", "Night"));
+        // Security personnel live in the staff table — no separate initialization needed
         
         System.out.println("Database initialized with updated data:");
         System.out.println("- Departments: " + departmentRepository.count());

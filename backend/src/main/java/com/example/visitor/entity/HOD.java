@@ -7,9 +7,6 @@ import jakarta.persistence.*;
 @Table(name = "staff")
 public class HOD {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
     @Column(name = "staff_code", nullable = false, unique = true, length = 50)
     private String hodCode;
 
@@ -30,8 +27,8 @@ public class HOD {
 
     @Transient private boolean isActive = true;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public String getId() { return hodCode; }
+    public void setId(String id) { this.hodCode = id; }
     public String getHodCode() { return hodCode; }
     public void setHodCode(String hodCode) { this.hodCode = hodCode; }
     public String getHodName() { return hodName; }
