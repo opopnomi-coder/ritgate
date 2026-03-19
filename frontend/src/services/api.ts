@@ -17,21 +17,20 @@ class ApiService {
     console.log('📍 Using backend URL:', this.baseURL);
   }
 
-  // Test connection to backend
+  // Test connection to backend — 70s timeout to handle Render free tier cold start
   async findWorkingBackend(): Promise<string | null> {
     console.log('🔍 Testing backend connection...');
     console.log('📍 Backend URL:', BACKEND_URL);
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      // 70s: Render free tier can take up to 60s to wake up
+      const timeoutId = setTimeout(() => controller.abort(), 70000);
 
       const response = await fetch(`${BACKEND_URL.replace('/api', '')}/api/health`, {
         method: 'GET',
         signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-        },
+        headers: { 'Accept': 'application/json' },
       });
 
       clearTimeout(timeoutId);
@@ -49,6 +48,19 @@ class ApiService {
 
     this.isBackendAvailable = false;
     return null;
+  }
+
+  // Fire-and-forget ping to wake up Render free tier before user taps Continue
+  wakeUpBackend(): void {
+    const healthUrl = `${BACKEND_URL.replace('/api', '')}/api/health`;
+    console.log('🔔 Pinging backend to wake up:', healthUrl);
+    fetch(healthUrl, { method: 'GET' })
+      .then(() => {
+        console.log('✅ Backend wake-up ping sent');
+        this.isBackendAvailable = true;
+        this.baseURL = BACKEND_URL;
+      })
+      .catch(() => console.log('⏳ Backend still waking up...'));
   }
 
   // Check if backend is available
@@ -140,7 +152,7 @@ class ApiService {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 70000); // 70s for Render cold start
 
       const response = await fetch(url, {
         ...options,

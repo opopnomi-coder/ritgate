@@ -40,9 +40,18 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
   const [maskedEmail, setMaskedEmail] = useState('');
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState('Sending OTP...');
 
   const { errorInfo, showError, hideError, handleRetry, isVisible } = useErrorModal();
   const { successInfo, showSuccess, hideSuccess, isVisible: isSuccessVisible } = useSuccessModal();
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Wake up Render backend as soon as screen loads (fire-and-forget)
+  useEffect(() => {
+    apiService.wakeUpBackend();
+  }, []);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -90,6 +99,12 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
 
     const role = detectUserRole(userId);
     setLoading(true);
+    setLoadingMessage('Sending OTP...');
+
+    // After 5s, hint that the server may be waking up (Render free tier)
+    const wakeUpTimer = setTimeout(() => {
+      setLoadingMessage('Server is waking up, please wait...');
+    }, 5000);
 
     try {
       const response = await apiService.sendOTP(userId, role);
@@ -106,7 +121,9 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
     } catch (error: any) {
       showError(error, handleSendOTP);
     } finally {
+      clearTimeout(wakeUpTimer);
       setLoading(false);
+      setLoadingMessage('Sending OTP...');
     }
   };
 
@@ -251,7 +268,10 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
                   disabled={loading}
                 >
                   {loading ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                      <Text style={[styles.continueButtonText, { fontSize: 13 }]}>{loadingMessage}</Text>
+                    </View>
                   ) : (
                     <Text style={styles.continueButtonText}>Continue</Text>
                   )}

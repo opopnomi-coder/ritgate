@@ -2,6 +2,10 @@
 .DS_Store
 **/.DS_Store
 
+# Backend - Local credentials (never commit)
+backend/.env
+backend/src/main/resources/application-local.properties
+
 # Backend - Gradle build outputs
 backend/build/
 backend/.gradle/

@@ -13,47 +13,35 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class EntryExit {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(name = "user_type", nullable = false)
     private String userType; // STUDENT, STAFF, VISITOR
-    
+
     @Column(name = "user_id", nullable = false)
     private String userId; // regNo, staffCode, or visitor ID
-    
-    @Column(name = "user_name", nullable = false)
+
+    @Column(name = "person_name")
     private String userName;
-    
-    @Column(name = "user_email")
+
+    @Column(name = "department")
     private String userEmail;
-    
-    @Column(name = "action", nullable = false)
+
+    @Column(name = "scanned_by")
     private String action; // ENTRY, EXIT
-    
-    @Column(name = "location")
+
+    @Column(name = "scan_location")
     private String location; // Main Gate, Side Gate, etc.
-    
-    @Column(name = "purpose")
-    private String purpose; // Personal, Official, Medical, etc.
-    
-    @Column(name = "destination")
-    private String destination;
-    
-    @Column(name = "device_id")
-    private String deviceId;
-    
-    @Column(name = "ip_address")
-    private String ipAddress;
-    
-    @Column(name = "gate_pass_id")
-    private Long gatePassId; // Optional: if using gate pass
-    
+
+    @Column(name = "qr_id")
+    private Long gatePassId;
+
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
-    
+
     @PrePersist
     protected void onCreate() {
         if (timestamp == null) {
