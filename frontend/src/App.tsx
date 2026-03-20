@@ -661,6 +661,8 @@ const App: React.FC = () => {
             return (
               <HRApprovalScreen
                 user={hr as any}
+                request={selectedRequest}
+                onBack={() => setCurrentScreen('HR_DASHBOARD')}
               />
             );
           case 'PROFILE':

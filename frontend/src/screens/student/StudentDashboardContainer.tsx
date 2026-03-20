@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Animated } from 'react-native';
+import React, { useState } from 'react';
+import { View } from 'react-native';
 import { Student } from '../../types';
 import StudentHomeScreen from './StudentHomeScreen';
 import StudentRequestsScreen from './StudentRequestsScreen';
@@ -21,21 +21,9 @@ const StudentDashboardContainer: React.FC<StudentDashboardContainerProps> = ({
   onNavigate,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('HOME');
-  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const switchTab = (tab: TabType) => {
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
-      setActiveTab(tab);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    });
+    setActiveTab(tab);
   };
 
   const handleTabChange = (tab: 'HOME' | 'REQUESTS' | 'HISTORY' | 'PROFILE') => switchTab(tab);
@@ -100,9 +88,9 @@ const StudentDashboardContainer: React.FC<StudentDashboardContainerProps> = ({
   };
 
   return (
-    <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+    <View style={{ flex: 1 }}>
       {renderScreen()}
-    </Animated.View>
+    </View>
   );
 };
 

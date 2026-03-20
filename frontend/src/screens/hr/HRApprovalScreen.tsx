@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
 import { apiService } from '../../services/api';
 import { Staff } from '../../types';
 import { THEME } from '../../config/api.config';
@@ -20,13 +19,12 @@ import SuccessModal from '../../components/SuccessModal';
 import ErrorModal from '../../components/ErrorModal';
 
 interface HRApprovalScreenProps {
-  user: Staff; // HR uses Staff type
+  user: Staff;
+  request: any;
+  onBack: () => void;
 }
 
-const HRApprovalScreen: React.FC<HRApprovalScreenProps> = ({ user }) => {
-  const navigation = useNavigation();
-  const route = useRoute();
-  const request = (route.params as any)?.request;
+const HRApprovalScreen: React.FC<HRApprovalScreenProps> = ({ user, request, onBack }) => {
 
   const [loading, setLoading] = useState(false);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
@@ -100,7 +98,7 @@ const HRApprovalScreen: React.FC<HRApprovalScreenProps> = ({ user }) => {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={THEME.colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Request Details</Text>
@@ -117,7 +115,7 @@ const HRApprovalScreen: React.FC<HRApprovalScreenProps> = ({ user }) => {
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={THEME.colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Request Details</Text>
@@ -328,7 +326,7 @@ const HRApprovalScreen: React.FC<HRApprovalScreenProps> = ({ user }) => {
         message={feedbackMessage}
         onClose={() => {
           setShowSuccessModal(false);
-          navigation.goBack();
+          onBack();
         }}
         autoClose={false}
       />

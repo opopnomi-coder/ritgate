@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   StatusBar,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,22 +38,25 @@ const StudentHistoryScreen: React.FC<StudentHistoryScreenProps> = ({
   const [historyData, setHistoryData] = useState<HistoryItem[]>([]);
 
   useEffect(() => {
+    const onBackPress = () => {
+      onTabChange('HOME');
+      return true;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [onTabChange]);
+
+  useEffect(() => {
     loadHistory();
   }, []);
 
   const loadHistory = async () => {
     try {
-      // Load entry/exit history
       const entryHistory = await apiService.getUserEntryHistory(student.regNo);
-      
-      // Load gate pass requests
       const gatePassResponse = await apiService.getStudentGatePassRequests(student.regNo);
       const gatePasses = gatePassResponse.success ? gatePassResponse.requests : [];
-
-      // Combine and format data
       const combinedHistory: HistoryItem[] = [];
 
-      // Add entry/exit records
       entryHistory.forEach((item: any) => {
         if (item.entryTime) {
           combinedHistory.push({
@@ -73,7 +77,6 @@ const StudentHistoryScreen: React.FC<StudentHistoryScreenProps> = ({
         }
       });
 
-      // Add gate pass usage logs (approved passes that were used)
       if (gatePasses && Array.isArray(gatePasses)) {
         gatePasses
           .filter((pass: any) => pass.status === 'APPROVED' && pass.usedAt)
@@ -89,11 +92,7 @@ const StudentHistoryScreen: React.FC<StudentHistoryScreenProps> = ({
           });
       }
 
-      // Sort by timestamp descending
-      combinedHistory.sort((a, b) => 
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-
+      combinedHistory.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setHistoryData(combinedHistory);
     } catch (error) {
       console.error('Error loading history:', error);
@@ -107,109 +106,71 @@ const StudentHistoryScreen: React.FC<StudentHistoryScreenProps> = ({
     loadHistory();
   };
 
-  const filteredHistory = historyData;
-
   const getIconName = (type: string) => {
     switch (type) {
-      case 'ENTRY':
-        return 'log-in';
-      case 'EXIT':
-        return 'log-out';
-      case 'LATE_ENTRY':
-        return 'warning';
-      case 'GATE_PASS':
-        return 'qr-code';
-      default:
-        return 'time';
+      case 'ENTRY': return 'log-in';
+      case 'EXIT': return 'log-out';
+      case 'LATE_ENTRY': return 'warning';
+      case 'GATE_PASS': return 'qr-code';
+      default: return 'time';
     }
   };
 
   const getIconColor = (type: string) => {
     switch (type) {
-      case 'ENTRY':
-        return '#10B981';
-      case 'EXIT':
-        return '#EF4444';
-      case 'LATE_ENTRY':
-        return '#F59E0B';
-      case 'GATE_PASS':
-        return '#06B6D4';
-      default:
-        return '#6B7280';
+      case 'ENTRY': return '#10B981';
+      case 'EXIT': return '#EF4444';
+      case 'LATE_ENTRY': return '#F59E0B';
+      case 'GATE_PASS': return '#06B6D4';
+      default: return '#6B7280';
     }
   };
 
   const getTypeLabel = (type: string) => {
     switch (type) {
-      case 'ENTRY':
-        return 'Entry';
-      case 'EXIT':
-        return 'Exit';
-      case 'LATE_ENTRY':
-        return 'Late Entry';
-      case 'GATE_PASS':
-        return 'Gate Pass Used';
-      default:
-        return type;
+      case 'ENTRY': return 'Entry';
+      case 'EXIT': return 'Exit';
+      case 'LATE_ENTRY': return 'Late Entry';
+      case 'GATE_PASS': return 'Gate Pass Used';
+      default: return type;
     }
   };
 
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
+      month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
     });
   };
-
-
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.surface} />
-
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>History</Text>
       </View>
-
-      {/* History List */}
       <ScrollView
         style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         contentContainerStyle={styles.scrollContent}
       >
-        {filteredHistory.length === 0 ? (
+        {historyData.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="time-outline" size={64} color={theme.border} />
             <Text style={[styles.emptyText, { color: theme.textTertiary }]}>No history records</Text>
           </View>
         ) : (
-          filteredHistory.map((item) => (
+          historyData.map((item) => (
             <View key={item.id} style={[styles.historyCard, { backgroundColor: theme.cardBackground }]}>
               <View style={[styles.iconContainer, { backgroundColor: getIconColor(item.type) + '20' }]}>
                 <Ionicons name={getIconName(item.type)} size={24} color={getIconColor(item.type)} />
               </View>
               <View style={styles.historyContent}>
                 <Text style={[styles.historyType, { color: theme.text }]}>{getTypeLabel(item.type)}</Text>
-                {item.passId && (
-                  <Text style={[styles.historyPassId, { color: theme.primary }]}>{item.passId}</Text>
-                )}
-                {item.reason && (
-                  <Text style={[styles.historyReason, { color: theme.textSecondary }]} numberOfLines={2}>
-                    {item.reason}
-                  </Text>
-                )}
+                {item.passId && <Text style={[styles.historyPassId, { color: theme.primary }]}>{item.passId}</Text>}
+                {item.reason && <Text style={[styles.historyReason, { color: theme.textSecondary }]} numberOfLines={2}>{item.reason}</Text>}
                 <View style={styles.historyMeta}>
                   <Ionicons name="time-outline" size={14} color={theme.textTertiary} />
-                  <Text style={[styles.historyTimestamp, { color: theme.textTertiary }]}>
-                    {formatTimestamp(item.timestamp)}
-                  </Text>
+                  <Text style={[styles.historyTimestamp, { color: theme.textTertiary }]}>{formatTimestamp(item.timestamp)}</Text>
                 </View>
                 {item.location && (
                   <View style={styles.historyMeta}>
@@ -222,8 +183,6 @@ const StudentHistoryScreen: React.FC<StudentHistoryScreenProps> = ({
           ))
         )}
       </ScrollView>
-
-      {/* Bottom Navigation */}
       <View style={[styles.bottomNav, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
         <TouchableOpacity style={styles.navItem} onPress={() => onTabChange('HOME')}>
           <Ionicons name="home-outline" size={24} color={theme.textTertiary} />
@@ -255,11 +214,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100 },
   emptyState: { paddingVertical: 80, alignItems: 'center' },
   emptyText: { fontSize: 16, fontWeight: '600', marginTop: 16 },
-  historyCard: {
-    flexDirection: 'row', borderRadius: 16, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, gap: 12,
-  },
+  historyCard: { flexDirection: 'row', borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2, gap: 12 },
   iconContainer: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   historyContent: { flex: 1, gap: 4 },
   historyType: { fontSize: 16, fontWeight: '700' },
@@ -268,12 +223,7 @@ const styles = StyleSheet.create({
   historyMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   historyTimestamp: { fontSize: 13 },
   historyLocation: { fontSize: 13 },
-  bottomNav: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', paddingVertical: 12, paddingHorizontal: 8,
-    borderTopWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05, shadowRadius: 8, elevation: 8,
-  },
+  bottomNav: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', paddingVertical: 12, paddingHorizontal: 8, borderTopWidth: 1, elevation: 8 },
   navItem: { flex: 1, alignItems: 'center', paddingVertical: 8, position: 'relative' },
   navLabel: { fontSize: 12, marginTop: 4, fontWeight: '500' },
   navLabelActive: { fontSize: 12, marginTop: 4, fontWeight: '700' },
