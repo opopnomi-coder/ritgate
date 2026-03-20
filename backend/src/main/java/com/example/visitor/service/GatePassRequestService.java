@@ -22,6 +22,7 @@ public class GatePassRequestService {
     private final HRRepository hrRepository;
     private final QRTableRepository qrTableRepository;
     private final NotificationService notificationService;
+    private final EmailService emailService;
     
     // Constructor
     public GatePassRequestService(
@@ -31,7 +32,8 @@ public class GatePassRequestService {
             HODRepository hodRepository,
             HRRepository hrRepository,
             QRTableRepository qrTableRepository,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            EmailService emailService) {
         this.gatePassRequestRepository = gatePassRequestRepository;
         this.studentRepository = studentRepository;
         this.staffRepository = staffRepository;
@@ -39,6 +41,7 @@ public class GatePassRequestService {
         this.hrRepository = hrRepository;
         this.qrTableRepository = qrTableRepository;
         this.notificationService = notificationService;
+        this.emailService = emailService;
     }
     
     // Submit student gate pass request
@@ -197,6 +200,30 @@ public class GatePassRequestService {
             log.error("Failed to notify student of staff approval for request {}", requestId, e);
         }
         
+        // Send email to student (fire-and-forget)
+        try {
+            String regNo = saved.getRegNo();
+            if ("STUDENT".equals(saved.getUserType())) {
+                studentRepository.findByRegNo(regNo).ifPresent(student -> {
+                    if (student.getEmail() != null && !student.getEmail().isBlank()) {
+                        new Thread(() -> {
+                            try {
+                                emailService.sendGatePassStatusEmail(
+                                    student.getEmail(), student.getFullName(),
+                                    "Staff Approved", saved.getPurpose(),
+                                    "Your gate pass request has been approved by Staff and is now awaiting HOD approval."
+                                );
+                            } catch (Exception ex) {
+                                log.warn("Email send failed for staff approval (non-critical): {}", ex.getMessage());
+                            }
+                        }).start();
+                    }
+                });
+            }
+        } catch (Exception e) {
+            log.warn("Email notification setup failed (non-critical): {}", e.getMessage());
+        }
+        
         // Only notify HOD if there is one assigned
         if (saved.getAssignedHodCode() != null && !"VISITOR".equals(saved.getUserType())) {
             try {
@@ -265,8 +292,48 @@ public class GatePassRequestService {
         // Send notification to student (QR ready)
         if ("STUDENT".equals(saved.getUserType())) {
             notificationService.notifyStudentOfHODApproval(saved);
+            // Email student — gate pass fully approved, QR ready (fire-and-forget)
+            try {
+                studentRepository.findByRegNo(saved.getRegNo()).ifPresent(student -> {
+                    if (student.getEmail() != null && !student.getEmail().isBlank()) {
+                        new Thread(() -> {
+                            try {
+                                emailService.sendGatePassStatusEmail(
+                                    student.getEmail(), student.getFullName(),
+                                    "Gate Pass Approved ✓", saved.getPurpose(),
+                                    "Your gate pass has been fully approved by HOD. Your QR code is ready — open the app to view it."
+                                );
+                            } catch (Exception ex) {
+                                log.warn("Email send failed for HOD approval (non-critical): {}", ex.getMessage());
+                            }
+                        }).start();
+                    }
+                });
+            } catch (Exception e) {
+                log.warn("Email notification setup failed (non-critical): {}", e.getMessage());
+            }
         } else if ("STAFF".equals(saved.getUserType())) {
             notificationService.notifyStaffOfHODApproval(saved);
+            // Email staff — gate pass fully approved (fire-and-forget)
+            try {
+                staffRepository.findByStaffCode(saved.getRegNo()).ifPresent(staff -> {
+                    if (staff.getEmail() != null && !staff.getEmail().isBlank()) {
+                        new Thread(() -> {
+                            try {
+                                emailService.sendGatePassStatusEmail(
+                                    staff.getEmail(), staff.getStaffName(),
+                                    "Gate Pass Approved ✓", saved.getPurpose(),
+                                    "Your gate pass has been approved by HOD. Your QR code is ready — open the app to view it."
+                                );
+                            } catch (Exception ex) {
+                                log.warn("Email send failed for HOD approval (non-critical): {}", ex.getMessage());
+                            }
+                        }).start();
+                    }
+                });
+            } catch (Exception e) {
+                log.warn("Email notification setup failed (non-critical): {}", e.getMessage());
+            }
             
             // If it's a bulk pass, notify allParticipants
             if ("BULK".equals(saved.getPassType())) {
@@ -574,8 +641,15 @@ public class GatePassRequestService {
             }
         }
         
-        // Sort by created date descending
-        allRequests.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+        // Sort by created date descending (null-safe)
+        allRequests.sort((a, b) -> {
+            LocalDateTime da = a.getCreatedAt() != null ? a.getCreatedAt() : a.getRequestDate();
+            LocalDateTime db = b.getCreatedAt() != null ? b.getCreatedAt() : b.getRequestDate();
+            if (da == null && db == null) return 0;
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return db.compareTo(da);
+        });
         
         log.info("Found {} individual requests + {} bulk passes as receiver = {} total requests for student {}", 
             individualRequests.size(), bulkPassesAsReceiver.size(), allRequests.size(), regNo);
@@ -618,8 +692,15 @@ public class GatePassRequestService {
             }
         }
         
-        // Sort by created date descending
-        allRequests.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+        // Sort by created date descending (null-safe)
+        allRequests.sort((a, b) -> {
+            LocalDateTime da = a.getCreatedAt() != null ? a.getCreatedAt() : a.getRequestDate();
+            LocalDateTime db = b.getCreatedAt() != null ? b.getCreatedAt() : b.getRequestDate();
+            if (da == null && db == null) return 0;
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return db.compareTo(da);
+        });
         
         log.info("Found {} individual requests + {} bulk passes as receiver = {} total requests for staff {}", 
             individualRequests.size(), bulkPassesAsReceiver.size(), allRequests.size(), staffCode);
@@ -645,8 +726,15 @@ public class GatePassRequestService {
             }
         }
         
-        // Sort by created date descending
-        allRequests.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+        // Sort by created date descending (null-safe)
+        allRequests.sort((a, b) -> {
+            LocalDateTime da = a.getCreatedAt() != null ? a.getCreatedAt() : a.getRequestDate();
+            LocalDateTime db = b.getCreatedAt() != null ? b.getCreatedAt() : b.getRequestDate();
+            if (da == null && db == null) return 0;
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return db.compareTo(da);
+        });
         
         log.info("Found {} assigned requests + {} bulk passes as receiver = {} total requests for HOD {}", 
             assignedRequests.size(), bulkPassesAsReceiver.size(), allRequests.size(), hodCode);
@@ -995,8 +1083,15 @@ public class GatePassRequestService {
             }
         }
         
-        // Sort by created date descending
-        allRequests.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+        // Sort by created date descending (null-safe)
+        allRequests.sort((a, b) -> {
+            LocalDateTime da = a.getCreatedAt() != null ? a.getCreatedAt() : a.getRequestDate();
+            LocalDateTime db = b.getCreatedAt() != null ? b.getCreatedAt() : b.getRequestDate();
+            if (da == null && db == null) return 0;
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return db.compareTo(da);
+        });
         
         log.info("Found {} individual requests + {} bulk passes as receiver = {} total requests for HOD {}", 
             individualRequests.size(), bulkPassesAsReceiver.size(), allRequests.size(), hodCode);

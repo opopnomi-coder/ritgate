@@ -1,21 +1,21 @@
 services:
   - type: web
-    name: rit-transport-backend
+    name: ritgate-backend
     runtime: docker
     plan: free
+    dockerfilePath: ./backend/Dockerfile
     envVars:
       - key: PORT
         value: 8080
       - key: SPRING_DATASOURCE_URL
-        sync: false # Set in Render: jdbc:mysql://centerbeam.proxy.rlwy.net:58876/railway?useSSL=true&allowPublicKeyRetrieval=true&serverTimezone=UTC
+        sync: false
       - key: SPRING_DATASOURCE_USERNAME
-        sync: false # Set in Render: root
+        sync: false
       - key: SPRING_DATASOURCE_PASSWORD
-        sync: false # Set in Render Dashboard
+        sync: false
       - key: BACKEND_BASE_URL
         value: https://ritgate-backend.onrender.com
-      # Brevo HTTP API key — get from Brevo dashboard -> API Keys tab
       - key: BREVO_API_KEY
-        sync: false # Set in Render Dashboard
+        sync: false
       - key: BREVO_SENDER_EMAIL
-        sync: false # Set to your verified sender email in Brevo
+        sync: false

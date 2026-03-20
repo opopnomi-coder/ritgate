@@ -13,11 +13,15 @@ buildscript {
 }
 
 allprojects {
-  buildDir = "C:/build/ritgate-build/${project.name}"
   repositories {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
+  }
+  // Redirect subproject build dirs to short path to avoid Windows 260-char MAX_PATH limit
+  // Root project (MyGate) must keep default build dir - autolinking.json is written there by ReactSettingsPlugin
+  if (project != rootProject) {
+    layout.buildDirectory = file("C:/rb/MyGate/${project.name}")
   }
 }
 

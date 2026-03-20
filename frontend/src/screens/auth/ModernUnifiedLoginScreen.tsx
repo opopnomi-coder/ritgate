@@ -41,6 +41,7 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('Sending OTP...');
+  const [serverWakeSeconds, setServerWakeSeconds] = useState(0);
 
   const { errorInfo, showError, hideError, handleRetry, isVisible } = useErrorModal();
   const { successInfo, showSuccess, hideSuccess, isVisible: isSuccessVisible } = useSuccessModal();
@@ -96,31 +97,59 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
 
     const role = detectUserRole(userId);
     setLoading(true);
-    setLoadingMessage('Sending OTP...');
+    setLoadingMessage('Connecting to server...');
+    setServerWakeSeconds(0);
 
-    // After 5s, hint that the server may be waking up (Render free tier)
-    const wakeUpTimer = setTimeout(() => {
-      setLoadingMessage('Server is waking up, please wait...');
-    }, 5000);
+    // Progressive loading messages with countdown
+    let elapsed = 0;
+    const msgInterval = setInterval(() => {
+      elapsed += 1;
+      setServerWakeSeconds(elapsed);
+      if (elapsed < 5) {
+        setLoadingMessage('Sending OTP...');
+      } else if (elapsed < 15) {
+        setLoadingMessage('Server is waking up...');
+      } else if (elapsed < 30) {
+        setLoadingMessage(`Server starting up... (${elapsed}s)`);
+      } else {
+        setLoadingMessage(`Almost ready... (${elapsed}s)`);
+      }
+    }, 1000);
 
     try {
       const response = await apiService.sendOTP(userId, role);
-      
+
       if (response.success) {
         setOtpSent(true);
         setDetectedRole(role);
-        setMaskedEmail(response.maskedEmail || 'm***@institution.edu');
-        setOtpTimer(120); // 2 minutes
+        setMaskedEmail(response.maskedEmail || response.email || 'm***@institution.edu');
+        setOtpTimer(120);
         showSuccess('OTP has been sent to your registered email', 'OTP Sent');
       } else {
-        showError(new AppError('api', response.message || 'Failed to send OTP', 'OTP Send Failed'), handleSendOTP);
+        showError(
+          new AppError('api', response.message || 'Failed to send OTP', 'OTP Send Failed'),
+          handleSendOTP
+        );
       }
     } catch (error: any) {
-      showError(error, handleSendOTP);
+      const msg = error?.message || '';
+      if (msg.includes('starting up') || msg.includes('timeout') || error?.name === 'AbortError') {
+        showError(
+          new AppError(
+            'api',
+            'Server is starting up (Render free tier). Please wait ~60 seconds and tap Retry.',
+            'Server Starting'
+          ),
+          handleSendOTP
+        );
+      } else {
+        showError(error, handleSendOTP);
+      }
     } finally {
-      clearTimeout(wakeUpTimer);
+      clearInterval(msgInterval);
       setLoading(false);
       setLoadingMessage('Sending OTP...');
+      setServerWakeSeconds(0);
     }
   };
 
@@ -265,9 +294,16 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
                   disabled={loading}
                 >
                   {loading ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <ActivityIndicator color="#FFFFFF" size="small" />
-                      <Text style={[styles.continueButtonText, { fontSize: 13 }]}>{loadingMessage}</Text>
+                    <View style={{ alignItems: 'center', gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                        <Text style={[styles.continueButtonText, { fontSize: 13 }]}>{loadingMessage}</Text>
+                      </View>
+                      {serverWakeSeconds >= 5 && (
+                        <View style={styles.progressBar}>
+                          <View style={[styles.progressFill, { width: `${Math.min((serverWakeSeconds / 90) * 100, 100)}%` as any }]} />
+                        </View>
+                      )}
                     </View>
                   ) : (
                     <Text style={styles.continueButtonText}>Continue</Text>
@@ -505,6 +541,18 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  progressBar: {
+    width: '80%',
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 2,
   },
   divider: {
     flexDirection: 'row',

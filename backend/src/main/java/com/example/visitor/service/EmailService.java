@@ -138,4 +138,16 @@ public class EmailService {
             "Best regards,\nRIT Gate Visitor Management System";
         sendEmail(visitorEmail, visitorName, subject, body);
     }
+
+    public void sendGatePassStatusEmail(String toEmail, String toName, String statusLabel,
+                                        String purpose, String detailMessage) {
+        String subject = "Gate Pass Update: " + statusLabel + " — RIT Gate";
+        String body =
+            "Dear " + toName + ",\n\n" +
+            detailMessage + "\n\n" +
+            "Purpose: " + (purpose != null ? purpose : "N/A") + "\n\n" +
+            "Open the RIT Gate app to view your request status.\n\n" +
+            "Best regards,\nRIT Gate Visitor Management System";
+        sendEmail(toEmail, toName, subject, body);
+    }
 }

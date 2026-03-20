@@ -214,7 +214,7 @@ public class AuthController {
             otpTimestamp.put(security.getEmail(), System.currentTimeMillis());
             
             // Send OTP via Email
-            emailService.sendOTP(security.getEmail(), otp, security.getName());
+            sendOTPEmail(security.getEmail(), otp, security.getName());
   // Log OTP to console for testing - ENHANCED FORMAT
             System.out.println("\n" + "=".repeat(70));
             System.out.println("🔐 OTP GENERATED - SECURITY ID LOGIN");
@@ -274,7 +274,7 @@ public class AuthController {
             otpTimestamp.put(security.getEmail(), System.currentTimeMillis());
             
             // Send OTP via Email
-            emailService.sendOTP(security.getEmail(), otp, security.getName());
+            sendOTPEmail(security.getEmail(), otp, security.getName());
 
             // Log OTP to console for testing - ENHANCED FORMAT
             System.out.println("\n" + "=".repeat(70));
@@ -386,6 +386,20 @@ public class AuthController {
         response.put("message", message);
         return response;
     }
+
+    /**
+     * Send OTP email — never throws. Email failure is logged but does NOT block login.
+     * The OTP is always printed to console as a fallback.
+     */
+    private void sendOTPEmail(String email, String otp, String name) {
+        try {
+            emailService.sendOTP(email, otp, name);
+            System.out.println("✅ OTP email dispatched to: " + email);
+        } catch (Exception e) {
+            System.err.println("⚠️  Email send failed for " + email + ": " + e.getMessage());
+            System.err.println("⚠️  OTP is still valid — user can get it from Render logs.");
+        }
+    }
     
     // ============================================
     // STUDENT AUTHENTICATION
@@ -422,7 +436,7 @@ public class AuthController {
             otpTimestamp.put(student.getEmail(), System.currentTimeMillis());
             
             // Send OTP via Email
-            emailService.sendOTP(student.getEmail(), otp, student.getFullName());
+            sendOTPEmail(student.getEmail(), otp, student.getFullName());
             
             // Log OTP to console
             System.out.println("\n" + "=".repeat(70));
@@ -544,7 +558,7 @@ public class AuthController {
             otpTimestamp.put(staff.getEmail(), System.currentTimeMillis());
             
             // Send OTP via Email
-            emailService.sendOTP(staff.getEmail(), otp, staff.getStaffName());
+            sendOTPEmail(staff.getEmail(), otp, staff.getStaffName());
             // Log OTP to console
             System.out.println("\n" + "=".repeat(70));
             System.out.println("🔐 OTP GENERATED - STAFF LOGIN");
@@ -664,7 +678,7 @@ public class AuthController {
             otpTimestamp.put(hod.getEmail(), System.currentTimeMillis());
             
             // Send OTP via Email
-            emailService.sendOTP(hod.getEmail(), otp, hod.getHodName());
+            sendOTPEmail(hod.getEmail(), otp, hod.getHodName());
             // Log OTP to console
             System.out.println("\n" + "=".repeat(70));
             System.out.println("🔐 OTP GENERATED - HOD LOGIN");
@@ -784,7 +798,7 @@ public class AuthController {
             otpTimestamp.put(hr.getEmail(), System.currentTimeMillis());
             
             // Send OTP via Email
-            emailService.sendOTP(hr.getEmail(), otp, hr.getHrName());
+            sendOTPEmail(hr.getEmail(), otp, hr.getHrName());
             // Log OTP to console
             System.out.println("\n" + "=".repeat(70));
             System.out.println("🔐 OTP GENERATED - HR LOGIN");
@@ -911,7 +925,7 @@ public class AuthController {
             otpAttempts.put(email, 0);
 
             // Send OTP via email
-            emailService.sendOTP(email, otp, security.getName());
+            sendOTPEmail(email, otp, security.getName());
 
             logAuthEvent(securityCode, "SECURITY", "OTP_SENT", "SUCCESS", "OTP sent to " + maskEmail(email));
 

@@ -8,7 +8,9 @@ import {
   View,
   Alert,
   Text,
+  BackHandler,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Student, Staff, HOD, HR, SecurityPersonnel, UserType, UserRole, ScreenName } from './types';
 import { offlineStorage } from './services/offlineStorage';
 import { professionalTheme } from './styles/professionalTheme';
@@ -266,10 +268,35 @@ const App: React.FC = () => {
       setCurrentScreen('HOD_DASHBOARD');
     } else if (userType === 'HR') {
       setCurrentScreen('HR_DASHBOARD');
+    } else if (userType === 'SECURITY') {
+      setCurrentScreen('SECURITY_DASHBOARD');
     } else {
       setCurrentScreen('HOME');
     }
   };
+
+  // ── Hardware back button / gesture back ──────────────────────────────────
+  const ROOT_SCREENS: ScreenName[] = [
+    'HOME', 'DASHBOARD', 'STAFF_DASHBOARD', 'HOD_DASHBOARD',
+    'HR_DASHBOARD', 'SECURITY_DASHBOARD',
+  ];
+
+  React.useEffect(() => {
+    const onBackPress = () => {
+      if (currentScreen === 'UNIFIED_LOGIN') {
+        goBackToHome();
+        return true;
+      }
+      if (ROOT_SCREENS.includes(currentScreen)) {
+        return false; // let system handle (exits app)
+      }
+      navigateBack();
+      return true;
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [currentScreen, userType]);
 
   const goBackToHome = () => {
     setUserType(null);
@@ -754,20 +781,22 @@ const App: React.FC = () => {
   };
 
   return (
-    <ThemeProvider>
-      <NotificationProvider>
-        <ProfileProvider>
-          <View style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
-            <StatusBar
-              barStyle="dark-content"
-              backgroundColor="#F8FAFC"
-              translucent={false}
-            />
-            {renderCurrentScreen()}
-          </View>
-        </ProfileProvider>
-      </NotificationProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <NotificationProvider>
+          <ProfileProvider>
+            <View style={[styles.container, { backgroundColor: '#F8FAFC' }]}>
+              <StatusBar
+                barStyle="dark-content"
+                backgroundColor="transparent"
+                translucent={true}
+              />
+              {renderCurrentScreen()}
+            </View>
+          </ProfileProvider>
+        </NotificationProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 };
 
