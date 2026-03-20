@@ -11,6 +11,7 @@ import {
   Image,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -103,6 +104,17 @@ const GatePassRequestScreen: React.FC<GatePassRequestScreenProps> = ({ user, nav
 
   const pickDocument = async () => {
     try {
+      // Request permission first — required on Android 13+ and iOS
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please allow access to your photo library in Settings to attach files.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         base64: true,
@@ -141,7 +153,7 @@ const GatePassRequestScreen: React.FC<GatePassRequestScreenProps> = ({ user, nav
 
     const payload = isStaff
       ? { staffCode: identifier, purpose: purpose.trim(), reason: reason.trim(), requestDate: requestDate.toISOString(), attachmentUri: attachment?.base64Uri }
-      : { regNo: identifier, purpose: purpose.trim(), reason: reason.trim(), requestDate: requestDate.toISOString(), attachmentUri: attachment?.base64Uri };
+      : { regNo: identifier, purpose: purpose.trim(), reason: reason.trim(), requestDate: requestDate.toISOString(), attachmentUri: attachment?.base64Uri || undefined };
 
     try {
       const response = isStaff

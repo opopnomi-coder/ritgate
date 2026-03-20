@@ -209,7 +209,7 @@ class ApiService {
   }
 
   // ── Gate Pass ─────────────────────────────────────────────────────────────
-  async submitGatePassRequest(d: { regNo: string; purpose: string; reason: string; requestDate: string }): Promise<ApiResponse> {
+  async submitGatePassRequest(d: { regNo: string; purpose: string; reason: string; requestDate: string; attachmentUri?: string }): Promise<ApiResponse> {
     try { return await this.makeRequest(`${this.baseURL}/gate-pass/student/submit`, { method: 'POST', body: JSON.stringify(d) }); }
     catch (e: any) { return { success: false, message: e.message || 'Failed to submit gate pass request' }; }
   }
@@ -380,6 +380,13 @@ class ApiService {
   async registerPushToken(userId: string, role: string, token: string): Promise<ApiResponse> {
     try { return await this.makeRequest(`${this.baseURL}/notifications/register-token`, { method: 'POST', body: JSON.stringify({ userId, role, token }) }); }
     catch (e: any) { return { success: false, message: e.message || 'Failed' }; }
+  }
+
+  async getActivePersons(): Promise<{ success: boolean; data?: any[]; message?: string }> {
+    try {
+      const data = await this.makeRequest(`${this.baseURL}/security/active-persons`, { method: 'GET' });
+      return { success: true, data: data.persons || data.data || data || [] };
+    } catch (e: any) { return { success: false, data: [], message: e.message }; }
   }
 
   // ── Legacy compat stubs (used by older screens) ───────────────────────────

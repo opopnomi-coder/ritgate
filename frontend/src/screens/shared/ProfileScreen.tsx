@@ -400,38 +400,38 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       {/* Bottom Navigation for Student */}
       {showBottomNav && onTabChange && (
-        <View style={styles.bottomNav}>
+        <View style={[styles.bottomNav, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
           <TouchableOpacity
             style={styles.navItem}
             onPress={() => onTabChange('HOME')}
           >
-            <Ionicons name="home-outline" size={24} color="#9CA3AF" />
-            <Text style={styles.navLabel}>Home</Text>
+            <Ionicons name="home-outline" size={24} color={theme.textTertiary} />
+            <Text style={[styles.navLabel, { color: theme.textTertiary }]}>Home</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.navItem}
             onPress={() => onTabChange('REQUESTS')}
           >
-            <Ionicons name="document-text-outline" size={24} color="#9CA3AF" />
-            <Text style={styles.navLabel}>Requests</Text>
+            <Ionicons name="document-text-outline" size={24} color={theme.textTertiary} />
+            <Text style={[styles.navLabel, { color: theme.textTertiary }]}>Requests</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.navItem}
             onPress={() => onTabChange('HISTORY')}
           >
-            <Ionicons name="time-outline" size={24} color="#9CA3AF" />
-            <Text style={styles.navLabel}>History</Text>
+            <Ionicons name="time-outline" size={24} color={theme.textTertiary} />
+            <Text style={[styles.navLabel, { color: theme.textTertiary }]}>History</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.navItem}
             onPress={() => onTabChange('PROFILE')}
           >
-            <Ionicons name="person" size={24} color="#1F2937" />
-            <Text style={styles.navLabelActive}>Profile</Text>
-            <View style={styles.activeIndicator} />
+            <Ionicons name="person" size={24} color={theme.primary} />
+            <Text style={[styles.navLabelActive, { color: theme.primary }]}>Profile</Text>
+            <View style={[styles.activeIndicator, { backgroundColor: theme.primary }]} />
           </TouchableOpacity>
         </View>
       )}
@@ -691,11 +691,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
     paddingVertical: 12,
     paddingHorizontal: 8,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
@@ -710,13 +708,11 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     fontSize: 12,
-    color: '#9CA3AF',
     marginTop: 4,
     fontWeight: '500',
   },
   navLabelActive: {
     fontSize: 12,
-    color: '#1F2937',
     marginTop: 4,
     fontWeight: '700',
   },
@@ -725,7 +721,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 32,
     height: 3,
-    backgroundColor: '#1F2937',
     borderRadius: 2,
   },
 });
