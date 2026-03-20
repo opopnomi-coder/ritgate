@@ -9,7 +9,6 @@ import {
   StatusBar,
   Modal,
   Image,
-  Alert,
   TextInput,
   BackHandler,
 } from 'react-native';
@@ -21,6 +20,9 @@ import { useTheme } from '../../context/ThemeContext';
 import RequestTimeline from '../../components/RequestTimeline';
 import MyRequestsBulkModal from '../../components/MyRequestsBulkModal';
 import GatePassQRModal from '../../components/GatePassQRModal';
+import { useErrorModal } from '../../hooks/useErrorModal';
+import { AppError } from '../../utils/errorHandler';
+import ErrorModal from '../../components/ErrorModal';
 
 interface StudentRequestsScreenProps {
   student: Student;
@@ -44,6 +46,7 @@ const StudentRequestsScreen: React.FC<StudentRequestsScreenProps> = ({
   const [manualEntryCode, setManualEntryCode] = useState<string | null>(null);
   const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
   const [previewAttachmentUri, setPreviewAttachmentUri] = useState<string | null>(null);
+  const { errorInfo, showError, hideError, handleRetry, isVisible: isErrorVisible } = useErrorModal();
 
   useEffect(() => {
     const onBackPress = () => {
@@ -103,11 +106,11 @@ const StudentRequestsScreen: React.FC<StudentRequestsScreenProps> = ({
         setQrCodeData(response.qrCode);
         setManualEntryCode(response.manualCode || null);
       } else {
-        Alert.alert('Error', response.message || 'Could not fetch QR code');
+        showError(new AppError('api', response.message || 'Could not fetch QR code', 'QR Code Error'));
         setShowQRModal(false);
       }
-    } catch (error) {
-       Alert.alert('Error', 'Failed to load QR code');
+    } catch (error: any) {
+       showError(error);
        setShowQRModal(false);
     }
   };
@@ -202,6 +205,7 @@ const StudentRequestsScreen: React.FC<StudentRequestsScreenProps> = ({
         </TouchableOpacity>
       </View>
       <GatePassQRModal visible={showQRModal} onClose={() => setShowQRModal(false)} personName={`${student.firstName} ${student.lastName || ''}`} personId={student.regNo} qrCodeData={qrCodeData} manualCode={manualEntryCode} reason={selectedRequest?.reason || selectedRequest?.purpose}/>
+      <ErrorModal visible={isErrorVisible} type={errorInfo?.type || 'general'} title={errorInfo?.title} message={errorInfo?.message || ''} onClose={hideError} onRetry={errorInfo?.canRetry ? handleRetry : undefined} />
     </SafeAreaView>
   );
 };

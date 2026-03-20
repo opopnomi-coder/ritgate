@@ -274,7 +274,7 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
               <View style={styles.modalIcon}><Ionicons name="shield-checkmark" size={32} color="#FFFFFF" /></View>
               <TouchableOpacity style={styles.modalClose} onPress={() => setShowOTPSuccessModal(false)}><Ionicons name="close" size={24} color="#64748B" /></TouchableOpacity>
             </View>
-            <Text style={styles.modalTitle}>Verification Sent</Text>
+            <Text style={styles.modalTitle}>OTP Sent</Text>
             <Text style={styles.modalSub}>A 6-digit code has been sent to <Text style={styles.emailHighlight}>{maskedEmail}</Text></Text>
             <TouchableOpacity style={styles.verifyBtn} onPress={goToOTPPage}>
               <Text style={styles.verifyTxt}>Enter Code</Text>

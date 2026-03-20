@@ -628,6 +628,7 @@ public class AuthController {
             
             // Set staffName explicitly for frontend compatibility
             userDTO.setStaffName(staff.getStaffName());
+            userDTO.setStaffCode(staff.getStaffCode());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -748,6 +749,7 @@ public class AuthController {
             
             // Set hodName explicitly for frontend compatibility
             userDTO.setHodName(hod.getHodName());
+            userDTO.setHodCode(hod.getHodCode());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -868,6 +870,7 @@ public class AuthController {
             
             // Set hrName explicitly for frontend compatibility
             userDTO.setHrName(hr.getHrName());
+            userDTO.setHrCode(hr.getHrCode());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -1071,6 +1074,7 @@ public class AuthController {
                         staff.getIsActive()
                     );
                     userDTO.setStaffName(staff.getStaffName());
+                    userDTO.setStaffCode(staff.getStaffCode());
                     userKey = "staff";
                     break;
                 }

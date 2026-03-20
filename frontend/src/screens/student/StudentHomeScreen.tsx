@@ -9,11 +9,9 @@ import {
   StatusBar,
   Image,
   Modal,
-  Alert,
-  Platform,
+  TextInput,
   BackHandler,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Student } from '../../types';

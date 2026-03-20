@@ -10,7 +10,6 @@ import {
   Animated,
   Image,
   Dimensions,
-  Alert,
   BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -61,10 +60,10 @@ const GatePassRequestScreen: React.FC<GatePassRequestScreenProps> = ({ user, nav
 
   const userInfo = getUserDisplayName();
   
-  const handleGoBack = React.useCallback(() => {
+  const handleGoBack = () => {
     if (navigation?.goBack) navigation.goBack();
     else if (onBack) onBack();
-  }, [navigation, onBack]);
+  };
 
   useEffect(() => {
     const onBackPress = () => {
@@ -144,7 +143,7 @@ const GatePassRequestScreen: React.FC<GatePassRequestScreenProps> = ({ user, nav
       setShowErrorModal(true);
       return;
     }
-    const staffCode = (user as any).staffCode;
+    const staffCode = (user as any).staffCode || ((user as any).userId && !(user as any).regNo && !(user as any).hodCode ? (user as any).userId : undefined);
     const hodCode = (user as any).hodCode;
     const regNo = (user as any).regNo;
     const isStaff = !!staffCode;

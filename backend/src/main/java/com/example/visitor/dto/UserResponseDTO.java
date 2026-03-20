@@ -5,7 +5,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class UserResponseDTO {
     private Long id;
     private String userId; // regNo, staffCode, hodCode, or securityId
-    private String regNo;  // Added for student support (same as userId for students)
+    private String regNo;      // For student support
+    private String staffCode;  // For staff support
+    private String hodCode;    // For HOD support
+    private String hrCode;     // For HR support
+    private String securityId; // For security support
     private String name;
     private String firstName; // Added for student support
     private String lastName;  // Added for student support
@@ -66,6 +70,30 @@ public class UserResponseDTO {
     public void setRegNo(String regNo) { 
         this.regNo = regNo;
         this.userId = regNo; // Also set userId for backward compatibility
+    }
+    
+    public String getStaffCode() { return staffCode; }
+    public void setStaffCode(String staffCode) {
+        this.staffCode = staffCode;
+        this.userId = staffCode;
+    }
+
+    public String getHodCode() { return hodCode; }
+    public void setHodCode(String hodCode) {
+        this.hodCode = hodCode;
+        this.userId = hodCode;
+    }
+
+    public String getHrCode() { return hrCode; }
+    public void setHrCode(String hrCode) {
+        this.hrCode = hrCode;
+        this.userId = hrCode;
+    }
+
+    public String getSecurityId() { return securityId; }
+    public void setSecurityId(String securityId) {
+        this.securityId = securityId;
+        this.userId = securityId;
     }
     
     public String getName() { return name; }
