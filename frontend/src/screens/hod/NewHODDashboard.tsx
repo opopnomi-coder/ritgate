@@ -25,6 +25,7 @@ import BulkDetailsModal from '../../components/BulkDetailsModal';
 import SinglePassDetailsModal from '../../components/SinglePassDetailsModal';
 import SuccessModal from '../../components/SuccessModal';
 import ErrorModal from '../../components/ErrorModal';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 interface NewHODDashboardProps {
   hod: HOD;
@@ -58,6 +59,7 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   const [modalTitle, setModalTitle] = useState('');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { unreadCount, loadNotifications } = useNotifications();
   const { profileImage } = useProfile();
 
@@ -233,7 +235,7 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
             <Ionicons name="notifications-outline" size={24} color={theme.text} />
             {unreadCount > 0 && <View style={[styles.notificationIndicator, { backgroundColor: theme.success, borderColor: theme.surface }]} />}
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={onLogout}>
+          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowLogoutModal(true)}>
             <Ionicons name="log-out-outline" size={24} color={theme.error} />
           </TouchableOpacity>
         </View>
@@ -486,6 +488,16 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
         title={modalTitle}
         message={modalMessage}
         onClose={() => setShowErrorModal(false)}
+      />
+      <ConfirmationModal
+        visible={showLogoutModal}
+        title="Logout"
+        message="Are you sure you want to log out?"
+        confirmText="Logout"
+        onConfirm={onLogout}
+        onCancel={() => setShowLogoutModal(false)}
+        icon="log-out-outline"
+        confirmColor={theme.error}
       />
     </SafeAreaView>
   );

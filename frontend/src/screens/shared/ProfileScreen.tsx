@@ -19,6 +19,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useProfile } from '../../context/ProfileContext';
 import { apiService } from '../../services/api';
 import ThemePresetSelector from '../../components/ThemePresetSelector';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 interface ProfileScreenProps {
   user: any;
@@ -60,6 +61,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     fetchStats();
@@ -110,14 +112,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to log out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Log Out', style: 'destructive', onPress: onLogout },
-      ]
-    );
+    setShowLogoutModal(true);
   };
 
   const pickAvatar = () => {
@@ -435,6 +430,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
         </View>
       )}
+      <ConfirmationModal
+        visible={showLogoutModal}
+        title="Logout"
+        message="Are you sure you want to log out?"
+        confirmText="Logout"
+        onConfirm={onLogout}
+        onCancel={() => setShowLogoutModal(false)}
+        icon="log-out-outline"
+        confirmColor={theme.error}
+      />
     </SafeAreaView>
   );
 };

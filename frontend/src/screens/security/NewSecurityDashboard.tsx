@@ -21,6 +21,7 @@ import { useProfile } from '../../context/ProfileContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useTheme } from '../../context/ThemeContext';
 import NotificationDropdown from '../../components/NotificationDropdown';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 interface NewSecurityDashboardProps {
   user: SecurityPersonnel;
@@ -62,6 +63,7 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const [stats, setStats] = useState({
     active: 0,
@@ -254,7 +256,7 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
             <Ionicons name="notifications-outline" size={24} color={theme.text} />
             {unreadCount > 0 && <View style={[styles.notificationIndicator, { backgroundColor: theme.error }]} />}
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={onLogout}>
+          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowLogoutModal(true)}>
             <Ionicons name="log-out-outline" size={24} color={theme.error} />
           </TouchableOpacity>
         </View>
@@ -487,6 +489,16 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
         onClose={() => setShowNotificationDropdown(false)}
         userId={user.securityId}
         userType="security"
+      />
+      <ConfirmationModal
+        visible={showLogoutModal}
+        title="Logout"
+        message="Are you sure you want to log out?"
+        confirmText="Logout"
+        onConfirm={onLogout}
+        onCancel={() => setShowLogoutModal(false)}
+        icon="log-out-outline"
+        confirmColor={theme.error}
       />
     </SafeAreaView>
   );

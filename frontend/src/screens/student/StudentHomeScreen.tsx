@@ -22,6 +22,7 @@ import { useProfile } from '../../context/ProfileContext';
 import NotificationDropdown from '../../components/NotificationDropdown';
 import RequestTimeline from '../../components/RequestTimeline';
 import GatePassQRModal from '../../components/GatePassQRModal';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 interface StudentHomeScreenProps {
   student: Student;
@@ -52,6 +53,7 @@ const StudentHomeScreen: React.FC<StudentHomeScreenProps> = ({
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [manualEntryCode, setManualEntryCode] = useState<string | null>(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -293,7 +295,7 @@ const StudentHomeScreen: React.FC<StudentHomeScreenProps> = ({
               </View>
             )}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton} onPress={onLogout}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => setShowLogoutModal(true)}>
             <Ionicons name="log-out-outline" size={24} color="#EF4444" />
           </TouchableOpacity>
         </View>
@@ -510,6 +512,16 @@ const StudentHomeScreen: React.FC<StudentHomeScreenProps> = ({
         qrCodeData={qrCodeData}
         manualCode={manualEntryCode}
         reason={selectedRequest?.reason || selectedRequest?.purpose}
+      />
+
+      <ConfirmationModal
+        visible={showLogoutModal}
+        title="Logout"
+        message="Are you sure you want to log out of your account?"
+        confirmText="Logout"
+        onConfirm={onLogout}
+        onCancel={() => setShowLogoutModal(false)}
+        icon="log-out-outline"
       />
     </SafeAreaView>
   );

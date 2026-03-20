@@ -24,6 +24,7 @@ import NotificationDropdown from '../../components/NotificationDropdown';
 import SuccessModal from '../../components/SuccessModal';
 import ErrorModal from '../../components/ErrorModal';
 import SinglePassDetailsModal from '../../components/SinglePassDetailsModal';
+import ConfirmationModal from '../../components/ConfirmationModal';
 
 interface NewStaffDashboardProps {
   staff: Staff;
@@ -53,6 +54,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
   const [modalTitle, setModalTitle] = useState('');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { unreadCount, loadNotifications } = useNotifications();
   const { profileImage } = useProfile();
 
@@ -317,7 +319,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
               <View style={[styles.notificationIndicator, { backgroundColor: theme.success, borderColor: theme.surface }]} />
             )}
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={onLogout}>
+          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowLogoutModal(true)}>
             <Ionicons name="log-out-outline" size={24} color={theme.error} />
           </TouchableOpacity>
         </View>
@@ -698,6 +700,17 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
         title={modalTitle}
         message={modalMessage}
         onClose={() => setShowErrorModal(false)}
+      />
+
+      <ConfirmationModal
+        visible={showLogoutModal}
+        title="Logout"
+        message="Are you sure you want to log out? Any unsaved changes may be lost."
+        confirmText="Logout"
+        onConfirm={onLogout}
+        onCancel={() => setShowLogoutModal(false)}
+        icon="log-out-outline"
+        confirmColor={theme.error}
       />
 
     </SafeAreaView>

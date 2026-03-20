@@ -104,7 +104,6 @@ const GatePassRequestScreen: React.FC<GatePassRequestScreenProps> = ({ user, nav
 
   const pickDocument = async () => {
     try {
-      // Request permission first — required on Android 13+ and iOS
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
@@ -116,7 +115,7 @@ const GatePassRequestScreen: React.FC<GatePassRequestScreenProps> = ({ user, nav
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         base64: true,
         quality: 0.7,
       });
@@ -143,21 +142,28 @@ const GatePassRequestScreen: React.FC<GatePassRequestScreenProps> = ({ user, nav
       return;
     }
 
-    const isStaff = 'staffCode' in user;
-    const identifier = isStaff ? (user as any).staffCode : ('regNo' in user ? (user as any).regNo : (user as any).userId);
+    const staffCode = (user as any).staffCode;
+    const hodCode = (user as any).hodCode;
+    const regNo = (user as any).regNo;
+    const isStaff = !!staffCode;
+    const isHOD = !staffCode && !!hodCode;
+    const identifier = staffCode || hodCode || regNo;
+
     if (!identifier) {
-      setErrorMessage('User identifier not found');
+      setErrorMessage('User identifier not found. Please log out and log in again.');
       setShowErrorModal(true);
       return;
     }
 
     const payload = isStaff
       ? { staffCode: identifier, purpose: purpose.trim(), reason: reason.trim(), requestDate: requestDate.toISOString(), attachmentUri: attachment?.base64Uri }
+      : isHOD
+      ? { staffCode: identifier, purpose: purpose.trim(), reason: reason.trim(), requestDate: requestDate.toISOString(), attachmentUri: attachment?.base64Uri }
       : { regNo: identifier, purpose: purpose.trim(), reason: reason.trim(), requestDate: requestDate.toISOString(), attachmentUri: attachment?.base64Uri || undefined };
 
     await withLock(async () => {
       try {
-        const response = isStaff
+        const response = (isStaff || isHOD)
           ? await apiService.submitStaffGatePassRequest(payload as any)
           : await apiService.submitGatePassRequest(payload as any);
         if (response.success) {
