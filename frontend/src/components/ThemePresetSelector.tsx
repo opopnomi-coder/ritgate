@@ -11,11 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, THEME_PRESETS, ThemePresetId } from '../context/ThemeContext';
 
-interface ThemePresetSelectorProps {
-  onCustomize?: () => void;
-}
-
-const ThemePresetSelector: React.FC<ThemePresetSelectorProps> = ({ onCustomize }) => {
+const ThemePresetSelector: React.FC = () => {
   const { theme, isDark, activePreset, transitioning, applyPreset, toggleTheme } = useTheme();
 
   const pressAnims = useRef<Record<string, Animated.Value>>(
@@ -123,44 +119,13 @@ const ThemePresetSelector: React.FC<ThemePresetSelectorProps> = ({ onCustomize }
             </Animated.View>
           );
         })}
-
-        {/* Custom tile */}
-        {onCustomize && (
-          <TouchableOpacity
-            style={[
-              styles.presetCard,
-              styles.customCard,
-              {
-                backgroundColor: theme.surfaceHighlight,
-                borderColor: activePreset === 'custom' ? theme.primary : theme.border,
-                borderWidth: activePreset === 'custom' ? 2 : 1,
-                borderStyle: 'dashed',
-              },
-            ]}
-            onPress={onCustomize}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.customIcon, { backgroundColor: theme.primary + '20' }]}>
-              <Ionicons name="brush-outline" size={22} color={theme.primary} />
-            </View>
-            <Text style={[styles.presetName, { color: theme.text }]}>Custom</Text>
-            <Text style={[styles.presetDesc, { color: theme.textTertiary }]}>Pick colors</Text>
-            {activePreset === 'custom' && (
-              <View style={[styles.activeBadge, { backgroundColor: theme.primary }]}>
-                <Ionicons name="checkmark" size={10} color="#FFF" />
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
       </ScrollView>
 
       {/* Active preset label */}
       <View style={[styles.activeRow, { borderTopColor: theme.border }]}>
         <View style={[styles.activeDot, { backgroundColor: theme.primary }]} />
         <Text style={[styles.activeLabel, { color: theme.textSecondary }]}>
-          {activePreset === 'custom'
-            ? 'Custom theme active'
-            : `${THEME_PRESETS.find(p => p.id === activePreset)?.name ?? ''} · ${isDark ? 'Dark' : 'Light'}`}
+          {`${THEME_PRESETS.find(p => p.id === activePreset)?.name ?? ''} · ${isDark ? 'Dark' : 'Light'}`}
         </Text>
       </View>
     </View>
@@ -218,11 +183,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  customCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-  },
   swatchRow: {
     flexDirection: 'row',
     height: 8,
@@ -278,14 +238,6 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  customIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
   },
   activeRow: {
     flexDirection: 'row',

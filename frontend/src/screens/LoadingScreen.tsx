@@ -9,6 +9,7 @@ import {
   Image,
   Easing,
 } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -127,6 +128,7 @@ const FloatingDot: React.FC<{ x: number; y: number; delay: number; size: number 
 
 // ─── Main LoadingScreen ───────────────────────────────────────────────────────
 const LoadingScreen: React.FC = () => {
+  const { theme, isDark } = useTheme();
   // Logo animations
   const logoScale   = useRef(new Animated.Value(0)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -258,13 +260,13 @@ const LoadingScreen: React.FC = () => {
   });
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
       {/* Background gradient layers */}
-      <View style={styles.bgLayer1} />
-      <View style={styles.bgLayer2} />
-      <View style={styles.bgLayer3} />
+      <View style={[styles.bgLayer1, { backgroundColor: isDark ? '#0A1628' : theme.surfaceHighlight }]} />
+      <View style={[styles.bgLayer2, { backgroundColor: isDark ? '#071020' : theme.surface }]} />
+      <View style={[styles.bgLayer3, { backgroundColor: theme.primary + '18' }]} />
 
       {/* Floating ambient dots */}
       <FloatingDot x={W * 0.08} y={H * 0.12} delay={0}    size={6} />
@@ -279,13 +281,13 @@ const LoadingScreen: React.FC = () => {
 
         {/* Pulse rings behind logo */}
         <View style={styles.ringsWrap}>
-          <PulseRing delay={0}    size={180} color="rgba(99,179,237,0.5)" />
-          <PulseRing delay={600}  size={240} color="rgba(99,179,237,0.3)" />
-          <PulseRing delay={1200} size={300} color="rgba(99,179,237,0.15)" />
+          <PulseRing delay={0}    size={180} color={theme.primary + '80'} />
+          <PulseRing delay={600}  size={240} color={theme.primary + '4D'} />
+          <PulseRing delay={1200} size={300} color={theme.primary + '26'} />
         </View>
 
         {/* Glow halo */}
-        <Animated.View style={[styles.glowHalo, { opacity: glowOpacity }]} />
+        <Animated.View style={[styles.glowHalo, { opacity: glowOpacity, backgroundColor: theme.primary + '38' }]} />
 
         {/* Logo container with scan line */}
         <Animated.View
@@ -294,6 +296,8 @@ const LoadingScreen: React.FC = () => {
             {
               opacity: logoOpacity,
               transform: [{ scale: logoScale }],
+              borderColor: theme.primary + '59',
+              backgroundColor: theme.primary + '0F',
             },
           ]}
         >
@@ -306,7 +310,7 @@ const LoadingScreen: React.FC = () => {
           <Animated.View
             style={[
               styles.scanLine,
-              { transform: [{ translateY: scanY }] },
+              { transform: [{ translateY: scanY }], backgroundColor: theme.accent + '8C' },
             ]}
           />
         </Animated.View>
@@ -318,6 +322,7 @@ const LoadingScreen: React.FC = () => {
             {
               opacity: titleOpacity,
               transform: [{ translateY: titleTranslateY }],
+              color: theme.text,
             },
           ]}
         >
@@ -331,6 +336,7 @@ const LoadingScreen: React.FC = () => {
             {
               opacity: subOpacity,
               transform: [{ translateY: subTranslateY }],
+              color: theme.primary,
             },
           ]}
         >
@@ -340,7 +346,7 @@ const LoadingScreen: React.FC = () => {
         {/* Divider dots */}
         <Animated.View style={[styles.dotRow, { opacity: subOpacity }]}>
           {[0, 1, 2].map(i => (
-            <View key={i} style={styles.dividerDot} />
+            <View key={i} style={[styles.dividerDot, { backgroundColor: theme.primary + '80' }]} />
           ))}
         </Animated.View>
       </View>
@@ -348,17 +354,17 @@ const LoadingScreen: React.FC = () => {
       {/* Bottom section */}
       <View style={styles.bottom}>
         {/* Progress bar */}
-        <View style={styles.progressTrack}>
-          <Animated.View style={[styles.progressFill, { width: progressWidth }]}>
+        <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
+          <Animated.View style={[styles.progressFill, { width: progressWidth, backgroundColor: theme.primary }]}>
             {/* Shimmer on progress bar */}
             <View style={styles.progressShimmer} />
           </Animated.View>
         </View>
 
         <Animated.View style={[styles.badge, { opacity: badgeOpacity }]}>
-          <View style={styles.badgeDot} />
-          <Text style={styles.badgeText}>SECURE CONNECTION</Text>
-          <View style={styles.badgeDot} />
+          <View style={[styles.badgeDot, { backgroundColor: theme.primary }]} />
+          <Text style={[styles.badgeText, { color: theme.primary + 'B3' }]}>SECURE CONNECTION</Text>
+          <View style={[styles.badgeDot, { backgroundColor: theme.primary }]} />
         </Animated.View>
       </View>
     </View>
@@ -370,7 +376,6 @@ const LOGO_SIZE = 120;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050D1A',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -381,7 +386,6 @@ const styles = StyleSheet.create({
     width: W * 1.4,
     height: W * 1.4,
     borderRadius: W * 0.7,
-    backgroundColor: '#0A1628',
     top: -W * 0.3,
     left: -W * 0.2,
   },
@@ -390,7 +394,6 @@ const styles = StyleSheet.create({
     width: W * 1.2,
     height: W * 1.2,
     borderRadius: W * 0.6,
-    backgroundColor: '#071020',
     bottom: -W * 0.4,
     right: -W * 0.3,
   },
@@ -399,7 +402,6 @@ const styles = StyleSheet.create({
     width: W * 0.8,
     height: W * 0.8,
     borderRadius: W * 0.4,
-    backgroundColor: 'rgba(30,64,120,0.18)',
     top: H * 0.25,
     left: W * 0.1,
   },
@@ -424,7 +426,6 @@ const styles = StyleSheet.create({
     width: LOGO_SIZE + 60,
     height: LOGO_SIZE + 60,
     borderRadius: (LOGO_SIZE + 60) / 2,
-    backgroundColor: 'rgba(59,130,246,0.22)',
   },
 
   logoWrap: {
@@ -432,12 +433,9 @@ const styles = StyleSheet.create({
     height: LOGO_SIZE,
     borderRadius: LOGO_SIZE / 2,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1.5,
-    borderColor: 'rgba(99,179,237,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 24,
@@ -455,8 +453,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 2,
-    backgroundColor: 'rgba(147,210,255,0.55)',
-    shadowColor: '#93D2FF',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 6,
@@ -466,18 +462,13 @@ const styles = StyleSheet.create({
     marginTop: 32,
     fontSize: 34,
     fontWeight: '800',
-    color: '#F0F8FF',
     letterSpacing: 1.5,
-    textShadowColor: 'rgba(59,130,246,0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 12,
   },
 
   subtitle: {
     marginTop: 8,
     fontSize: 11,
     fontWeight: '600',
-    color: '#63B3ED',
     letterSpacing: 3.5,
   },
 
@@ -490,7 +481,6 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(99,179,237,0.5)',
   },
 
   // ── Bottom ─────────────────────────────────────────────────────────────────
@@ -505,13 +495,11 @@ const styles = StyleSheet.create({
   progressTrack: {
     width: '100%',
     height: 3,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#3B82F6',
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -534,12 +522,10 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#3B82F6',
   },
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: 'rgba(99,179,237,0.7)',
     letterSpacing: 2.5,
   },
 });

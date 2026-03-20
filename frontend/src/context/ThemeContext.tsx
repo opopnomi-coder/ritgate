@@ -37,7 +37,7 @@ export interface Theme {
   };
 }
 
-export type ThemePresetId = 'ocean' | 'neon' | 'sunset' | 'minimal' | 'custom';
+export type ThemePresetId = 'ocean' | 'neon' | 'sunset' | 'minimal';
 
 export interface ThemePreset {
   id: ThemePresetId;
@@ -289,7 +289,6 @@ interface ThemeContextType {
   transitioning: boolean;
   toggleTheme: () => void;
   applyPreset: (presetId: ThemePresetId) => void;
-  updateThemeColor: (key: keyof Theme, color: string) => void;
   resetTheme: () => void;
   /** Animated opacity value (0→1) that fires on every theme change — use for fade transitions */
   transitionOpacity: Animated.Value;
@@ -308,7 +307,6 @@ export const ThemeProvider: React.FC<{ children: ReactNode; userId?: string }> =
 }) => {
   const [isDark, setIsDark] = useState(false);
   const [activePreset, setActivePreset] = useState<ThemePresetId>('ocean');
-  const [customColors, setCustomColors] = useState<Partial<Theme>>({});
   const [transitioning, setTransitioning] = useState(false);
   const transitionOpacity = useRef(new Animated.Value(1)).current;
 
@@ -319,14 +317,12 @@ export const ThemeProvider: React.FC<{ children: ReactNode; userId?: string }> =
 
   const loadPreferences = async () => {
     try {
-      const [savedMode, savedPreset, savedColors] = await Promise.all([
+      const [savedMode, savedPreset] = await Promise.all([
         AsyncStorage.getItem(storageKey('mode', userId)),
         AsyncStorage.getItem(storageKey('preset', userId)),
-        AsyncStorage.getItem(storageKey('colors', userId)),
       ]);
       if (savedMode)   setIsDark(savedMode === 'dark');
       if (savedPreset) setActivePreset(savedPreset as ThemePresetId);
-      if (savedColors) setCustomColors(JSON.parse(savedColors));
     } catch (e) {
       console.error('ThemeContext: load error', e);
     }
@@ -362,39 +358,18 @@ export const ThemeProvider: React.FC<{ children: ReactNode; userId?: string }> =
   const applyPreset = useCallback((presetId: ThemePresetId) => {
     runTransition(() => {
       setActivePreset(presetId);
-      if (presetId !== 'custom') setCustomColors({});
       Promise.all([
         AsyncStorage.setItem(storageKey('preset', userId), presetId),
-        presetId !== 'custom'
-          ? AsyncStorage.removeItem(storageKey('colors', userId))
-          : Promise.resolve(),
       ]).catch(() => {});
     });
   }, [userId, runTransition]);
 
-  // ── Update single color (custom) ──────────────────────────────────────────
-  const updateThemeColor = useCallback(async (key: keyof Theme, color: string) => {
-    const next = { ...customColors, [key]: color };
-    setCustomColors(next);
-    setActivePreset('custom');
-    try {
-      await Promise.all([
-        AsyncStorage.setItem(storageKey('colors', userId), JSON.stringify(next)),
-        AsyncStorage.setItem(storageKey('preset', userId), 'custom'),
-      ]);
-    } catch (e) {
-      console.error('ThemeContext: save color error', e);
-    }
-  }, [customColors, userId]);
-
   // ── Reset ─────────────────────────────────────────────────────────────────
   const resetTheme = useCallback(() => {
     runTransition(() => {
-      setCustomColors({});
       setActivePreset('ocean');
       setIsDark(false);
       Promise.all([
-        AsyncStorage.removeItem(storageKey('colors', userId)),
         AsyncStorage.setItem(storageKey('preset', userId), 'ocean'),
         AsyncStorage.setItem(storageKey('mode', userId), 'light'),
       ]).catch(() => {});
@@ -405,17 +380,12 @@ export const ThemeProvider: React.FC<{ children: ReactNode; userId?: string }> =
   const buildTheme = (): Theme => {
     const base = isDark ? { ...BASE_DARK } : { ...BASE_LIGHT };
     base.type = isDark ? 'dark' : 'light';
-
-    if (activePreset !== 'custom') {
-      const preset = THEME_PRESETS.find(p => p.id === activePreset);
-      if (preset) {
-        const presetColors = isDark ? preset.dark : preset.light;
-        Object.assign(base, presetColors);
-      }
+    const preset = THEME_PRESETS.find(p => p.id === activePreset);
+    if (preset) {
+      const presetColors = isDark ? preset.dark : preset.light;
+      Object.assign(base, presetColors);
     }
-
-    // Custom overrides always win
-    return { ...base, ...customColors, type: isDark ? 'dark' : 'light' };
+    return { ...base, type: isDark ? 'dark' : 'light' };
   };
 
   const theme = buildTheme();
@@ -429,7 +399,6 @@ export const ThemeProvider: React.FC<{ children: ReactNode; userId?: string }> =
         transitioning,
         toggleTheme,
         applyPreset,
-        updateThemeColor,
         resetTheme,
         transitionOpacity,
       }}

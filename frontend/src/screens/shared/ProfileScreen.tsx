@@ -18,7 +18,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useProfile } from '../../context/ProfileContext';
 import { apiService } from '../../services/api';
-import ColorPickerModal from '../../components/ColorPickerModal';
 import ThemePresetSelector from '../../components/ThemePresetSelector';
 
 interface ProfileScreenProps {
@@ -38,7 +37,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   showBottomNav = false,
   onTabChange,
 }) => {
-  const { theme, isDark, toggleTheme, updateThemeColor, resetTheme } = useTheme();
+  const { theme, isDark, toggleTheme, resetTheme } = useTheme();
   const { profileImage, captureImage } = useProfile();
 
   // Local Profile Data State
@@ -61,11 +60,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
-
-  // Color Picker State
-  const [colorPickerVisible, setColorPickerVisible] = useState(false);
-  const [activeColorKey, setActiveColorKey] = useState<string | null>(null);
-  const [activeColorTitle, setActiveColorTitle] = useState('');
 
   useEffect(() => {
     fetchStats();
@@ -154,18 +148,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setIsEditing(false);
       Alert.alert('Success', 'Profile updated successfully!');
     }, 1200);
-  };
-
-  const openColorPicker = (key: string, title: string) => {
-    setActiveColorKey(key);
-    setActiveColorTitle(title);
-    setColorPickerVisible(true);
-  };
-
-  const handleColorSelect = (color: string) => {
-    if (activeColorKey) {
-      updateThemeColor(activeColorKey as any, color);
-    }
   };
 
   const getName = () => {
@@ -289,44 +271,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        <ThemePresetSelector
-          onCustomize={() => openColorPicker('primary', 'Primary Color')}
-        />
-
-        {/* Custom color pickers (shown when Custom preset is active) */}
-        <View style={styles.themeRow}>
-          <TouchableOpacity
-            style={[styles.themeItem, { backgroundColor: theme.surface }]}
-            onPress={() => openColorPicker('primary', 'Primary Color')}
-          >
-            <View style={[styles.colorCircle, { backgroundColor: theme.primary }]} />
-            <Text style={[styles.themeLabel, { color: theme.secondary }]}>PRIMARY</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.themeItem, { backgroundColor: theme.surface }]}
-            onPress={() => openColorPicker('secondary', 'Secondary Color')}
-          >
-            <View style={[styles.colorCircle, { backgroundColor: theme.secondary }]} />
-            <Text style={[styles.themeLabel, { color: theme.secondary }]}>SECONDARY</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.themeItem, { backgroundColor: theme.surface }]}
-            onPress={() => openColorPicker('accent', 'Accent Color')}
-          >
-            <View style={[styles.colorCircle, { backgroundColor: theme.accent || '#22D3EE' }]} />
-            <Text style={[styles.themeLabel, { color: theme.secondary }]}>ACCENT</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.themeItem, { backgroundColor: theme.surface }]}
-            onPress={() => openColorPicker('background', 'Background Color')}
-          >
-            <View style={[styles.colorCircle, { backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border }]} />
-            <Text style={[styles.themeLabel, { color: theme.secondary }]}>BG</Text>
-          </TouchableOpacity>
-        </View>
+        <ThemePresetSelector />
 
         {/* Personal Information */}
         <View style={styles.sectionHeaderContainer}>
@@ -490,14 +435,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
         </View>
       )}
-
-      <ColorPickerModal
-        visible={colorPickerVisible}
-        onClose={() => setColorPickerVisible(false)}
-        onSelectColor={handleColorSelect}
-        title={`Select ${activeColorTitle}`}
-        currentColor={activeColorKey ? (theme[activeColorKey as keyof typeof theme] as string) : ''}
-      />
     </SafeAreaView>
   );
 };
@@ -639,34 +576,6 @@ const styles = StyleSheet.create({
   editButton: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  themeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 32,
-  },
-  themeItem: {
-    width: '23%',
-    aspectRatio: 1,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  colorCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginBottom: 8,
-  },
-  themeLabel: {
-    fontSize: 8,
-    fontWeight: '700',
-    textAlign: 'center',
-    opacity: 0.7,
   },
   infoCard: {
     borderRadius: 16,
