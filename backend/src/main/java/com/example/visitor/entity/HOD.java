@@ -2,15 +2,14 @@ package com.example.visitor.entity;
 
 import jakarta.persistence.*;
 
-// HOD records live in the staff table — identified by role containing "HOD" or "Head"
 @Entity
-@Table(name = "staff")
+@Table(name = "hod")
 public class HOD {
     @Id
     @Column(name = "staff_code", nullable = false, unique = true, length = 50)
     private String hodCode;
 
-    @Column(name = "name", nullable = false, length = 200)
+    @Column(name = "name", length = 200)
     private String hodName;
 
     @Column(name = "email", length = 100)

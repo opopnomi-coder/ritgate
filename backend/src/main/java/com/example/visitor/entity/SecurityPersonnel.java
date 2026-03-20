@@ -2,15 +2,14 @@ package com.example.visitor.entity;
 
 import jakarta.persistence.*;
 
-// Security personnel live in the staff table — identified by role containing "Security"
 @Entity
-@Table(name = "staff")
+@Table(name = "security")
 public class SecurityPersonnel {
     @Id
     @Column(name = "staff_code", nullable = false, unique = true, length = 100)
     private String securityId;
 
-    @Column(name = "name", nullable = false, length = 255)
+    @Column(name = "name", length = 255)
     private String name;
 
     @Column(name = "email", length = 255)
