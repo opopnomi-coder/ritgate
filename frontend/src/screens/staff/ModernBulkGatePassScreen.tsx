@@ -6,7 +6,6 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Image,
   Platform,
@@ -17,6 +16,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { Staff } from '../../types';
 import { apiService } from '../../services/api';
+import SuccessModal from '../../components/SuccessModal';
+import ErrorModal from '../../components/ErrorModal';
 
 interface ModernBulkGatePassScreenProps {
   user: Staff;
@@ -38,6 +39,9 @@ const ModernBulkGatePassScreen: React.FC<ModernBulkGatePassScreenProps> = ({ use
   const [requestDateTime] = useState(new Date());
   const [includeStaff, setIncludeStaff] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [availableStudents, setAvailableStudents] = useState<Student[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [receiverId, setReceiverId] = useState<string | null>(null);
@@ -137,25 +141,27 @@ const ModernBulkGatePassScreen: React.FC<ModernBulkGatePassScreenProps> = ({ use
 
   const handleSubmit = async () => {
     if (!purpose.trim()) {
-      Alert.alert('Validation Error', 'Please enter a purpose');
+      setErrorMessage('Please enter a purpose');
+      setShowErrorModal(true);
       return;
     }
     if (!reason.trim()) {
-      Alert.alert('Validation Error', 'Please describe the reason for gate pass');
+      setErrorMessage('Please describe the reason for gate pass');
+      setShowErrorModal(true);
       return;
     }
     if (selectedStudents.size === 0) {
-      Alert.alert('Validation Error', 'Please select at least one student');
+      setErrorMessage('Please select at least one student');
+      setShowErrorModal(true);
       return;
     }
     if (!includeStaff && !receiverId) {
-      Alert.alert('Validation Error', 'Please select a receiver (student who will hold the QR code)');
+      setErrorMessage('Please select a receiver (student who will hold the QR code)');
+      setShowErrorModal(true);
       return;
     }
 
-    // Navigate back immediately — fire API in background
-    handleGoBack();
-
+    setIsSubmitting(true);
     try {
       const response = await apiService.createBulkGatePass({
         staffCode: user.staffCode,
@@ -168,9 +174,17 @@ const ModernBulkGatePassScreen: React.FC<ModernBulkGatePassScreenProps> = ({ use
         receiverId: includeStaff ? undefined : (receiverId || undefined),
         attachmentUri: attachment?.base64Uri,
       } as any);
-      if (!response.success) console.warn('Bulk gate pass failed:', response.message);
+      if (response.success) {
+        setShowSuccessModal(true);
+      } else {
+        setErrorMessage(response.message || 'Failed to submit bulk gate pass');
+        setShowErrorModal(true);
+      }
     } catch (error: any) {
-      console.error('Bulk submit error:', error);
+      setErrorMessage(error.message || 'An error occurred');
+      setShowErrorModal(true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -440,6 +454,22 @@ const ModernBulkGatePassScreen: React.FC<ModernBulkGatePassScreenProps> = ({ use
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <SuccessModal
+        visible={showSuccessModal}
+        title="Bulk Pass Submitted"
+        message={`Gate pass request submitted for ${selectedStudents.size} student${selectedStudents.size !== 1 ? 's' : ''}. Awaiting HOD approval.`}
+        onClose={() => { setShowSuccessModal(false); handleGoBack(); }}
+        autoClose={true}
+        autoCloseDelay={2500}
+      />
+      <ErrorModal
+        visible={showErrorModal}
+        type="api"
+        title="Submission Failed"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
+      />
     </SafeAreaView>
   );
 };

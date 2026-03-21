@@ -160,8 +160,7 @@ const GatePassRequestScreen: React.FC<GatePassRequestScreenProps> = ({ user, nav
         if (response.success) setShowSuccessModal(true);
         else { setErrorMessage(response.message || 'Failed to submit.'); setShowErrorModal(true); }
       } catch (error: any) { setErrorMessage(error.message || 'Error occurred.'); setShowErrorModal(true); }
-    }, 'Submitting request...');
-  };
+    }, 'Submitting request...');  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>

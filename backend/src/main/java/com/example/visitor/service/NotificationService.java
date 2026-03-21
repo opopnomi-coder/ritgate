@@ -23,18 +23,21 @@ public class NotificationService {
     private final StaffRepository staffRepository;
     private final HODRepository hodRepository;
     private final HRRepository hrRepository;
+    private final PushNotificationService pushNotificationService;
 
     public NotificationService(
             NotificationRepository notificationRepository,
             StudentRepository studentRepository,
             StaffRepository staffRepository,
             HODRepository hodRepository,
-            HRRepository hrRepository) {
+            HRRepository hrRepository,
+            PushNotificationService pushNotificationService) {
         this.notificationRepository = notificationRepository;
         this.studentRepository = studentRepository;
         this.staffRepository = staffRepository;
         this.hodRepository = hodRepository;
         this.hrRepository = hrRepository;
+        this.pushNotificationService = pushNotificationService;
     }
 
     // ==================== STUDENT GATE PASS NOTIFICATIONS ====================
@@ -360,5 +363,7 @@ public class NotificationService {
         Notification n = new Notification(userId, title, message, type, priority, actionUrl);
         notificationRepository.save(n);
         log.info("📧 Notification saved for {} — {}", userId, title);
+        // Fire push notification (non-fatal) — includes actionRoute so tapping opens the right screen
+        pushNotificationService.sendToUser(userId, title, message, actionUrl);
     }
 }

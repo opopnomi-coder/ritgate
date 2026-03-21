@@ -1,22 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Image,
-  Platform,
+  View, Text, StyleSheet, ScrollView, TextInput,
+  TouchableOpacity, ActivityIndicator, Image, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { HOD } from '../../types';
 import { apiService } from '../../services/api';
+import SuccessModal from '../../components/SuccessModal';
+import ErrorModal from '../../components/ErrorModal';
 
 interface HODBulkGatePassScreenProps {
   user: HOD;
@@ -29,7 +22,8 @@ interface Student {
   regNo: string;
   fullName: string;
   department: string;
-  year?: number;
+  year: string;
+  section: string;
 }
 
 interface StaffMember {
@@ -39,1219 +33,483 @@ interface StaffMember {
   department: string;
 }
 
-type ParticipantType = 'students' | 'staff';
 type ViewMode = 'students' | 'staff';
+
+// Simple dropdown component
+const Dropdown = ({ label, value, options, onSelect, placeholder }: {
+  label: string; value: string; options: string[];
+  onSelect: (v: string) => void; placeholder: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={dd.wrap}>
+      <Text style={dd.label}>{label}</Text>
+      <TouchableOpacity style={dd.btn} onPress={() => setOpen(true)}>
+        <Text style={[dd.btnText, !value && dd.placeholder]}>{value || placeholder}</Text>
+        <Ionicons name="chevron-down" size={18} color="#6B7280" />
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <TouchableOpacity style={dd.overlay} activeOpacity={1} onPress={() => setOpen(false)}>
+          <View style={dd.sheet}>
+            <Text style={dd.sheetTitle}>{label}</Text>
+            <ScrollView>
+              <TouchableOpacity style={dd.option} onPress={() => { onSelect(''); setOpen(false); }}>
+                <Text style={dd.optionText}>All</Text>
+              </TouchableOpacity>
+              {options.map(o => (
+                <TouchableOpacity key={o} style={[dd.option, value === o && dd.optionActive]}
+                  onPress={() => { onSelect(o); setOpen(false); }}>
+                  <Text style={[dd.optionText, value === o && dd.optionTextActive]}>{o}</Text>
+                  {value === o && <Ionicons name="checkmark" size={18} color="#F59E0B" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+};
 
 const HODBulkGatePassScreen: React.FC<HODBulkGatePassScreenProps> = ({ user, navigation, onBack }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('students');
   const [purpose, setPurpose] = useState('');
-  const [selectedPurpose, setSelectedPurpose] = useState('');
   const [reason, setReason] = useState('');
-  const [showExitPicker, setShowExitPicker] = useState(false);
-  const [showReturnPicker, setShowReturnPicker] = useState(false);
-  const [requestDateTime] = useState(new Date());
   const [includeHOD, setIncludeHOD] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Student-related state
-  const [availableStudents, setAvailableStudents] = useState<Student[]>([]);
-  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
-  const [selectedYear, setSelectedYear] = useState<string>('All');
-  const [studentSearchQuery, setStudentSearchQuery] = useState('');
-  
-  // Staff-related state
-  const [availableStaff, setAvailableStaff] = useState<StaffMember[]>([]);
-  const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set());
-  const [staffSearchQuery, setStaffSearchQuery] = useState('');
-  
-  const [receiverId, setReceiverId] = useState<string | null>(null);
-  const [receiverType, setReceiverType] = useState<'student' | 'staff' | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [attachment, setAttachment] = useState<{ name: string; base64Uri: string } | null>(null);
 
-  const purposeOptions = ['Medical', 'Academic', 'Personal', 'Emergency', 'Other'];
-  const yearOptions = ['All', '1st Year', '2nd Year', '3rd Year', '4th Year'];
+  // All data
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [allStaff, setAllStaff] = useState<StaffMember[]>([]);
 
-  const handleGoBack = () => {
-    if (navigation?.goBack) {
-      navigation.goBack();
-    } else if (onBack) {
-      onBack();
-    }
-  };
+  // Filters
+  const [filterYear, setFilterYear] = useState('');
+  const [filterDept, setFilterDept] = useState('');
+  const [filterSection, setFilterSection] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [staffSearch, setStaffSearch] = useState('');
 
-  useEffect(() => {
-    loadAllParticipants();
-  }, []);
+  // Selection
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [selectedStaff, setSelectedStaff] = useState<Set<string>>(new Set());
+  const [receiverId, setReceiverId] = useState<string | null>(null);
+  const [receiverType, setReceiverType] = useState<'student' | 'staff' | null>(null);
 
-  const loadAllParticipants = async () => {
+  const handleGoBack = () => navigation?.goBack ? navigation.goBack() : onBack?.();
+
+  useEffect(() => { loadParticipants(); }, []);
+
+  const loadParticipants = async () => {
     setIsLoading(true);
     try {
-      // Load both students and staff simultaneously
-      const [studentsResponse, staffResponse] = await Promise.all([
+      const [sr, stR] = await Promise.all([
         apiService.getHODDepartmentStudents(user.hodCode),
-        apiService.getHODDepartmentStaff(user.hodCode)
+        apiService.getHODDepartmentStaff(user.hodCode),
       ]);
-
-      if (studentsResponse.success && studentsResponse.students) {
-        setAvailableStudents(studentsResponse.students);
-      } else {
-        Alert.alert('Error', studentsResponse.message || 'Failed to load students');
-      }
-
-      if (staffResponse.success && staffResponse.staff) {
-        setAvailableStaff(staffResponse.staff);
-      } else {
-        Alert.alert('Error', staffResponse.message || 'Failed to load staff');
-      }
-    } catch (error) {
-      console.error('Error loading participants:', error);
-      Alert.alert('Error', 'Failed to load participants');
+      if (sr.success) setAllStudents(sr.students || []);
+      if (stR.success) setAllStaff(stR.staff || []);
+    } catch (e) {
+      console.error('Error loading participants:', e);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const toggleStudentSelection = (regNo: string) => {
-    const newSelection = new Set(selectedStudents);
-    if (newSelection.has(regNo)) {
-      newSelection.delete(regNo);
-      if (receiverId === regNo && receiverType === 'student') {
-        setReceiverId(null);
-        setReceiverType(null);
-      }
-    } else {
-      newSelection.add(regNo);
+  // Derive filter options from data
+  const yearOptions = useMemo(() =>
+    [...new Set(allStudents.map(s => s.year).filter(Boolean))].sort(), [allStudents]);
+
+  const deptOptions = useMemo(() => {
+    let src = allStudents;
+    if (filterYear) src = src.filter(s => s.year === filterYear);
+    return [...new Set(src.map(s => s.department).filter(Boolean))].sort();
+  }, [allStudents, filterYear]);
+
+  const sectionOptions = useMemo(() => {
+    let src = allStudents;
+    if (filterYear) src = src.filter(s => s.year === filterYear);
+    if (filterDept) src = src.filter(s => s.department === filterDept);
+    return [...new Set(src.map(s => s.section).filter(Boolean))].sort();
+  }, [allStudents, filterYear, filterDept]);
+
+  // Reset downstream filters when upstream changes
+  const handleYearChange = (v: string) => { setFilterYear(v); setFilterDept(''); setFilterSection(''); };
+  const handleDeptChange = (v: string) => { setFilterDept(v); setFilterSection(''); };
+
+  const filteredStudents = useMemo(() => {
+    let s = allStudents;
+    if (filterYear) s = s.filter(x => x.year === filterYear);
+    if (filterDept) s = s.filter(x => x.department === filterDept);
+    if (filterSection) s = s.filter(x => x.section === filterSection);
+    if (studentSearch.trim()) {
+      const q = studentSearch.toLowerCase();
+      s = s.filter(x => x.fullName.toLowerCase().includes(q) || x.regNo.toLowerCase().includes(q));
     }
-    setSelectedStudents(newSelection);
+    return s;
+  }, [allStudents, filterYear, filterDept, filterSection, studentSearch]);
+
+  const filteredStaff = useMemo(() => {
+    if (!staffSearch.trim()) return allStaff;
+    const q = staffSearch.toLowerCase();
+    return allStaff.filter(s => s.fullName.toLowerCase().includes(q) || s.staffCode.toLowerCase().includes(q));
+  }, [allStaff, staffSearch]);
+
+  const toggleStudent = (regNo: string) => {
+    const s = new Set(selectedStudents);
+    if (s.has(regNo)) { s.delete(regNo); if (receiverId === regNo) { setReceiverId(null); setReceiverType(null); } }
+    else s.add(regNo);
+    setSelectedStudents(s);
   };
 
-  const toggleStaffSelection = (staffCode: string) => {
-    const newSelection = new Set(selectedStaff);
-    if (newSelection.has(staffCode)) {
-      newSelection.delete(staffCode);
-      if (receiverId === staffCode && receiverType === 'staff') {
-        setReceiverId(null);
-        setReceiverType(null);
-      }
-    } else {
-      newSelection.add(staffCode);
-    }
-    setSelectedStaff(newSelection);
+  const toggleStaff = (code: string) => {
+    const s = new Set(selectedStaff);
+    if (s.has(code)) { s.delete(code); if (receiverId === code) { setReceiverId(null); setReceiverType(null); } }
+    else s.add(code);
+    setSelectedStaff(s);
   };
 
-  const selectAllParticipants = () => {
+  const selectAll = () => {
     if (viewMode === 'students') {
-      const filtered = getFilteredStudents();
-      if (selectedStudents.size === filtered.length) {
+      if (selectedStudents.size === filteredStudents.length && filteredStudents.length > 0) {
         setSelectedStudents(new Set());
-        if (receiverType === 'student') {
-          setReceiverId(null);
-          setReceiverType(null);
-        }
       } else {
-        const allRegNos = new Set(filtered.map(s => s.regNo));
-        setSelectedStudents(allRegNos);
+        setSelectedStudents(new Set(filteredStudents.map(s => s.regNo)));
       }
     } else {
-      const filtered = getFilteredStaff();
-      if (selectedStaff.size === filtered.length) {
+      if (selectedStaff.size === filteredStaff.length && filteredStaff.length > 0) {
         setSelectedStaff(new Set());
-        if (receiverType === 'staff') {
-          setReceiverId(null);
-          setReceiverType(null);
-        }
       } else {
-        const allStaffCodes = new Set(filtered.map(s => s.staffCode));
-        setSelectedStaff(allStaffCodes);
+        setSelectedStaff(new Set(filteredStaff.map(s => s.staffCode)));
       }
     }
   };
 
-  const getFilteredStudents = () => {
-    let filtered = availableStudents;
-    
-    // Filter by year
-    if (selectedYear !== 'All') {
-      const yearNum = parseInt(selectedYear.charAt(0));
-      filtered = filtered.filter(s => s.year === yearNum);
-    }
-    
-    // Filter by search query
-    if (studentSearchQuery.trim()) {
-      const query = studentSearchQuery.toLowerCase();
-      filtered = filtered.filter(student =>
-        student.fullName.toLowerCase().includes(query) ||
-        student.regNo.toLowerCase().includes(query) ||
-        student.department.toLowerCase().includes(query)
-      );
-    }
-    
-    return filtered;
-  };
-
-  const getFilteredStaff = () => {
-    if (!staffSearchQuery.trim()) return availableStaff;
-    const query = staffSearchQuery.toLowerCase();
-    return availableStaff.filter(staff =>
-      staff.fullName.toLowerCase().includes(query) ||
-      staff.staffCode.toLowerCase().includes(query) ||
-      staff.department.toLowerCase().includes(query)
-    );
-  };
-
-  const formatDateTime = (date: Date) => {
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  const getTotalSelectedCount = () => {
-    return selectedStudents.size + selectedStaff.size;
-  };
+  const totalSelected = selectedStudents.size + selectedStaff.size;
 
   const pickAttachment = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      base64: true,
-      quality: 0.7,
-    });
-    if (!result.canceled && result.assets?.[0]) {
-      const asset = result.assets[0];
-      const mimeType = asset.mimeType || 'image/jpeg';
-      setAttachment({ name: asset.fileName || 'attachment.jpg', base64Uri: `data:${mimeType};base64,${asset.base64}` });
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, base64: true, quality: 0.7 });
+    if (!r.canceled && r.assets?.[0]) {
+      const a = r.assets[0];
+      setAttachment({ name: a.fileName || 'attachment.jpg', base64Uri: `data:${a.mimeType || 'image/jpeg'};base64,${a.base64}` });
     }
-  };
-
-  const getSelectedParticipants = () => {
-    const participants: Array<{id: string, type: 'student' | 'staff'}> = [];
-    
-    // Add selected students
-    Array.from(selectedStudents).forEach(regNo => {
-      participants.push({ id: regNo, type: 'student' });
-    });
-    
-    // Add selected staff
-    Array.from(selectedStaff).forEach(staffCode => {
-      participants.push({ id: staffCode, type: 'staff' });
-    });
-    
-    return participants;
   };
 
   const handleSubmit = async () => {
-    if (!purpose.trim()) {
-      Alert.alert('Validation Error', 'Please enter a purpose');
-      return;
-    }
-    if (!reason.trim()) {
-      Alert.alert('Validation Error', 'Please describe the reason for gate pass');
-      return;
-    }
-    const totalSelected = getTotalSelectedCount();
-    if (totalSelected === 0) {
-      Alert.alert('Validation Error', 'Please select at least one student or staff member');
-      return;
-    }
-    if (!includeHOD && !receiverId) {
-      Alert.alert('Validation Error', 'Please select a receiver (person who will hold the QR code)');
-      return;
-    }
+    if (!purpose.trim()) { setErrorMessage('Please enter a purpose'); setShowErrorModal(true); return; }
+    if (!reason.trim()) { setErrorMessage('Please enter a reason'); setShowErrorModal(true); return; }
+    if (totalSelected === 0) { setErrorMessage('Please select at least one participant'); setShowErrorModal(true); return; }
+    if (!includeHOD && !receiverId) { setErrorMessage('Please select a receiver for the QR code'); setShowErrorModal(true); return; }
 
-    // Navigate back immediately — fire API in background
-    handleGoBack();
-
+    setIsSubmitting(true);
     try {
-      const participants = getSelectedParticipants();
-      const response = await apiService.submitHODBulkGatePass({
+      const participants = [
+        ...Array.from(selectedStudents).map(id => ({ id, type: 'student' })),
+        ...Array.from(selectedStaff).map(id => ({ id, type: 'staff' })),
+      ];
+      const response = await apiService.submitBulkGatePass({
         hodCode: user.hodCode,
         purpose: purpose.trim(),
         reason: reason.trim(),
         exitDateTime: new Date().toISOString(),
-        returnDateTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        participantType: 'mixed',
-        participants: participants.map(p => p.id),
+        returnDateTime: new Date(Date.now() + 86400000).toISOString(),
         participantDetails: participants,
+        participants: participants.map(p => p.id),
         includeHOD,
         receiverId: includeHOD ? undefined : (receiverId || undefined),
-        receiverType: includeHOD ? undefined : (receiverType || undefined),
         attachmentUri: attachment?.base64Uri,
       } as any);
-      if (!response.success) console.warn('HOD bulk gate pass failed:', response.message);
-    } catch (error: any) {
-      console.error('HOD bulk submit error:', error);
+      if (response.success !== false) {
+        setShowSuccessModal(true);
+      } else {
+        setErrorMessage(response.message || 'Failed to submit bulk gate pass');
+        setShowErrorModal(true);
+      }
+    } catch (e: any) {
+      setErrorMessage(e.message || 'An error occurred');
+      setShowErrorModal(true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const filteredStudents = getFilteredStudents();
-  const filteredStaff = getFilteredStaff();
-
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
+      <View style={s.header}>
+        <TouchableOpacity onPress={handleGoBack} style={s.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>HOD Bulk Gate Pass</Text>
+        <Text style={s.headerTitle}>HOD Bulk Gate Pass</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Info Banner */}
-      <View style={styles.infoBanner}>
-        <Ionicons name="information-circle" size={20} color="#3B82F6" />
-        <Text style={styles.infoBannerText}>Bulk passes are generated instantly — no HR approval required</Text>
+      <View style={s.infoBanner}>
+        <Ionicons name="information-circle" size={18} color="#3B82F6" />
+        <Text style={s.infoBannerText}>Bulk passes — no HR approval required</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Selection Summary */}
-        <View style={styles.section}>
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
-                <Ionicons name="school" size={24} color="#3B82F6" />
-                <View style={styles.summaryTextContainer}>
-                  <Text style={styles.summaryLabel}>Students</Text>
-                  <Text style={styles.summaryValue}>{selectedStudents.size}</Text>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        {/* Summary */}
+        <View style={s.card}>
+          <View style={s.summaryRow}>
+            {[['school', '#3B82F6', 'Students', selectedStudents.size],
+              ['briefcase', '#10B981', 'Staff', selectedStaff.size],
+              ['people', '#F59E0B', 'Total', totalSelected]].map(([icon, color, lbl, val]) => (
+              <View key={lbl as string} style={s.summaryItem}>
+                <Ionicons name={icon as any} size={22} color={color as string} />
+                <View>
+                  <Text style={s.summaryLabel}>{lbl as string}</Text>
+                  <Text style={s.summaryVal}>{val as number}</Text>
                 </View>
               </View>
-              <View style={styles.summaryDivider} />
-              <View style={styles.summaryItem}>
-                <Ionicons name="briefcase" size={24} color="#10B981" />
-                <View style={styles.summaryTextContainer}>
-                  <Text style={styles.summaryLabel}>Staff</Text>
-                  <Text style={styles.summaryValue}>{selectedStaff.size}</Text>
-                </View>
-              </View>
-              <View style={styles.summaryDivider} />
-              <View style={styles.summaryItem}>
-                <Ionicons name="people" size={24} color="#F59E0B" />
-                <View style={styles.summaryTextContainer}>
-                  <Text style={styles.summaryLabel}>Total</Text>
-                  <Text style={styles.summaryValue}>{getTotalSelectedCount()}</Text>
-                </View>
-              </View>
-            </View>
+            ))}
           </View>
         </View>
 
-        {/* Include HOD Checkbox */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.checkboxRow}
-            onPress={() => {
-              const newIncludeHOD = !includeHOD;
-              setIncludeHOD(newIncludeHOD);
-              if (newIncludeHOD) {
-                setReceiverId(null);
-                setReceiverType(null);
-              }
-            }}
-            disabled={isSubmitting}
-          >
-            <Ionicons
-              name={includeHOD ? 'checkbox' : 'square-outline'}
-              size={24}
-              color="#F59E0B"
-            />
-            <View style={styles.checkboxContent}>
-              <Text style={styles.checkboxLabel}>Include HOD in this Pass</Text>
-              <Text style={styles.checkboxSubtext}>
-                {includeHOD 
-                  ? 'HOD will hold the QR code for the group' 
-                  : 'One participant will be selected as receiver to hold the QR code'}
-              </Text>
+        {/* Include HOD toggle */}
+        <View style={s.card}>
+          <TouchableOpacity style={s.checkRow} onPress={() => { setIncludeHOD(!includeHOD); if (!includeHOD) { setReceiverId(null); setReceiverType(null); } }}>
+            <Ionicons name={includeHOD ? 'checkbox' : 'square-outline'} size={24} color="#F59E0B" />
+            <View style={{ flex: 1 }}>
+              <Text style={s.checkLabel}>Include HOD in this Pass</Text>
+              <Text style={s.checkSub}>{includeHOD ? 'HOD holds the QR code' : 'Select a receiver to hold the QR code'}</Text>
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* View Mode Tabs */}
-        <View style={styles.section}>
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tab, viewMode === 'students' && styles.tabActive]}
-              onPress={() => setViewMode('students')}
-            >
-              <Ionicons 
-                name="school" 
-                size={20} 
-                color={viewMode === 'students' ? '#FFF' : '#6B7280'} 
-              />
-              <Text style={[styles.tabText, viewMode === 'students' && styles.tabTextActive]}>
-                Students
-              </Text>
-              {selectedStudents.size > 0 && (
-                <View style={styles.tabBadge}>
-                  <Text style={styles.tabBadgeText}>{selectedStudents.size}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, viewMode === 'staff' && styles.tabActive]}
-              onPress={() => setViewMode('staff')}
-            >
-              <Ionicons 
-                name="briefcase" 
-                size={20} 
-                color={viewMode === 'staff' ? '#FFF' : '#6B7280'} 
-              />
-              <Text style={[styles.tabText, viewMode === 'staff' && styles.tabTextActive]}>
-                Staff
-              </Text>
-              {selectedStaff.size > 0 && (
-                <View style={styles.tabBadge}>
-                  <Text style={styles.tabBadgeText}>{selectedStaff.size}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
+        {/* Tabs */}
+        <View style={s.card}>
+          <View style={s.tabs}>
+            {(['students', 'staff'] as ViewMode[]).map(mode => (
+              <TouchableOpacity key={mode} style={[s.tab, viewMode === mode && s.tabActive]} onPress={() => setViewMode(mode)}>
+                <Ionicons name={mode === 'students' ? 'school' : 'briefcase'} size={18} color={viewMode === mode ? '#FFF' : '#6B7280'} />
+                <Text style={[s.tabText, viewMode === mode && s.tabTextActive]}>{mode === 'students' ? 'Students' : 'Staff'}</Text>
+                {(mode === 'students' ? selectedStudents.size : selectedStaff.size) > 0 && (
+                  <View style={s.badge}><Text style={s.badgeText}>{mode === 'students' ? selectedStudents.size : selectedStaff.size}</Text></View>
+                )}
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-        {/* Student Selection */}
+        {/* Student view */}
         {viewMode === 'students' && (
-          <View style={styles.section}>
-            {/* Year Filter Dropdown */}
-            <View style={styles.filterContainer}>
-              <Text style={styles.filterLabel}>Filter by Year:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.yearFilterScroll}>
-                {yearOptions.map((year) => (
-                  <TouchableOpacity
-                    key={year}
-                    style={[styles.yearFilterButton, selectedYear === year && styles.yearFilterButtonActive]}
-                    onPress={() => setSelectedYear(year)}
-                  >
-                    <Text style={[styles.yearFilterText, selectedYear === year && styles.yearFilterTextActive]}>
-                      {year}
-                    </Text>
+          <View style={s.card}>
+            {/* Cascading dropdowns */}
+            <Dropdown label="Year" value={filterYear} options={yearOptions} onSelect={handleYearChange} placeholder="All Years" />
+            <Dropdown label="Department" value={filterDept} options={deptOptions} onSelect={handleDeptChange} placeholder="All Departments" />
+            <Dropdown label="Section" value={filterSection} options={sectionOptions} onSelect={setFilterSection} placeholder="All Sections" />
+
+            <View style={s.rowBetween}>
+              <Text style={s.countText}>Selected: {selectedStudents.size} / {filteredStudents.length}</Text>
+              <TouchableOpacity onPress={selectAll} style={s.selectAllBtn}>
+                <Text style={s.selectAllText}>{selectedStudents.size === filteredStudents.length && filteredStudents.length > 0 ? 'Deselect All' : 'Select All'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.searchBox}>
+              <Ionicons name="search" size={18} color="#9CA3AF" />
+              <TextInput style={s.searchInput} placeholder="Search students..." placeholderTextColor="#9CA3AF" value={studentSearch} onChangeText={setStudentSearch} />
+            </View>
+
+            {isLoading ? <ActivityIndicator size="large" color="#F59E0B" style={{ marginVertical: 30 }} /> : (
+              filteredStudents.length === 0
+                ? <View style={s.empty}><Ionicons name="people-outline" size={40} color="#D1D5DB" /><Text style={s.emptyText}>No students found</Text></View>
+                : filteredStudents.map(st => (
+                  <TouchableOpacity key={st.regNo} style={s.item} onPress={() => toggleStudent(st.regNo)}>
+                    <Ionicons name={selectedStudents.has(st.regNo) ? 'checkbox' : 'square-outline'} size={24} color={selectedStudents.has(st.regNo) ? '#F59E0B' : '#9CA3AF'} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.itemName}>{st.fullName}</Text>
+                      <Text style={s.itemSub}>{st.regNo} • {st.year} • {st.department} • Sec {st.section}</Text>
+                    </View>
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Selected: {selectedStudents.size} / {filteredStudents.length}
-              </Text>
-              <TouchableOpacity onPress={selectAllParticipants} style={styles.selectAllButton}>
-                <Text style={styles.selectAllText}>Select All</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Search Bar */}
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={20} color="#9CA3AF" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search students..."
-                placeholderTextColor="#9CA3AF"
-                value={studentSearchQuery}
-                onChangeText={setStudentSearchQuery}
-              />
-            </View>
-
-            {/* Student List */}
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#F59E0B" />
-              </View>
-            ) : (
-              <View style={styles.participantList}>
-                {filteredStudents.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="people-outline" size={48} color="#9CA3AF" />
-                    <Text style={styles.emptyStateText}>No students found</Text>
-                  </View>
-                ) : (
-                  filteredStudents.map((student) => {
-                    const isSelected = selectedStudents.has(student.regNo);
-                    
-                    return (
-                      <TouchableOpacity
-                        key={student.regNo}
-                        style={styles.participantItem}
-                        onPress={() => toggleStudentSelection(student.regNo)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.checkbox}>
-                          {isSelected ? (
-                            <Ionicons name="checkbox" size={24} color="#F59E0B" />
-                          ) : (
-                            <Ionicons name="square-outline" size={24} color="#9CA3AF" />
-                          )}
-                        </View>
-                        <View style={styles.participantInfo}>
-                          <Text style={styles.participantName}>{student.fullName}</Text>
-                          <Text style={styles.participantDetails}>
-                            {student.regNo} • {student.year ? `${student.year}${student.year === 1 ? 'st' : student.year === 2 ? 'nd' : student.year === 3 ? 'rd' : 'th'} Year` : ''} • {student.department}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </View>
+                ))
             )}
           </View>
         )}
 
-        {/* Staff Selection */}
+        {/* Staff view */}
         {viewMode === 'staff' && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                Selected: {selectedStaff.size} / {filteredStaff.length}
-              </Text>
-              <TouchableOpacity onPress={selectAllParticipants} style={styles.selectAllButton}>
-                <Text style={styles.selectAllText}>Select All</Text>
+          <View style={s.card}>
+            <View style={s.rowBetween}>
+              <Text style={s.countText}>Selected: {selectedStaff.size} / {filteredStaff.length}</Text>
+              <TouchableOpacity onPress={selectAll} style={s.selectAllBtn}>
+                <Text style={s.selectAllText}>{selectedStaff.size === filteredStaff.length && filteredStaff.length > 0 ? 'Deselect All' : 'Select All'}</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Search Bar */}
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={20} color="#9CA3AF" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search staff..."
-                placeholderTextColor="#9CA3AF"
-                value={staffSearchQuery}
-                onChangeText={setStaffSearchQuery}
-              />
+            <View style={s.searchBox}>
+              <Ionicons name="search" size={18} color="#9CA3AF" />
+              <TextInput style={s.searchInput} placeholder="Search staff..." placeholderTextColor="#9CA3AF" value={staffSearch} onChangeText={setStaffSearch} />
             </View>
-
-            {/* Staff List */}
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#F59E0B" />
-              </View>
-            ) : (
-              <View style={styles.participantList}>
-                {filteredStaff.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="briefcase-outline" size={48} color="#9CA3AF" />
-                    <Text style={styles.emptyStateText}>No staff members found</Text>
-                  </View>
-                ) : (
-                  filteredStaff.map((staff) => {
-                    const isSelected = selectedStaff.has(staff.staffCode);
-                    
-                    return (
-                      <TouchableOpacity
-                        key={staff.staffCode}
-                        style={styles.participantItem}
-                        onPress={() => toggleStaffSelection(staff.staffCode)}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.checkbox}>
-                          {isSelected ? (
-                            <Ionicons name="checkbox" size={24} color="#F59E0B" />
-                          ) : (
-                            <Ionicons name="square-outline" size={24} color="#9CA3AF" />
-                          )}
-                        </View>
-                        <View style={styles.participantInfo}>
-                          <Text style={styles.participantName}>{staff.fullName}</Text>
-                          <Text style={styles.participantDetails}>
-                            {staff.staffCode} • {staff.department}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </View>
+            {isLoading ? <ActivityIndicator size="large" color="#F59E0B" style={{ marginVertical: 30 }} /> : (
+              filteredStaff.length === 0
+                ? <View style={s.empty}><Ionicons name="briefcase-outline" size={40} color="#D1D5DB" /><Text style={s.emptyText}>No staff found</Text></View>
+                : filteredStaff.map(st => (
+                  <TouchableOpacity key={st.staffCode} style={s.item} onPress={() => toggleStaff(st.staffCode)}>
+                    <Ionicons name={selectedStaff.has(st.staffCode) ? 'checkbox' : 'square-outline'} size={24} color={selectedStaff.has(st.staffCode) ? '#F59E0B' : '#9CA3AF'} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.itemName}>{st.fullName}</Text>
+                      <Text style={s.itemSub}>{st.staffCode} • {st.department}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))
             )}
           </View>
         )}
 
-        {/* Receiver Selection Section */}
-        {!includeHOD && getTotalSelectedCount() > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Select Receiver (QR Code Holder)</Text>
-            <View style={styles.receiverInfo}>
+        {/* Receiver selection */}
+        {!includeHOD && totalSelected > 0 && (
+          <View style={s.card}>
+            <Text style={s.sectionTitle}>Select QR Code Receiver</Text>
+            <View style={s.receiverInfo}>
               <Ionicons name="information-circle" size={16} color="#F59E0B" />
-              <Text style={styles.receiverInfoText}>
-                The receiver will hold the QR code for the entire group
-              </Text>
+              <Text style={s.receiverInfoText}>This person will hold the QR code for the group</Text>
             </View>
-
-            <View style={styles.receiverList}>
-              {/* Selected Students */}
-              {selectedStudents.size > 0 && (
-                <>
-                  <Text style={styles.receiverCategoryTitle}>Students</Text>
-                  {Array.from(selectedStudents).map((regNo) => {
-                    const student = availableStudents.find(s => s.regNo === regNo);
-                    if (!student) return null;
-                    
-                    const isReceiver = receiverId === regNo && receiverType === 'student';
-                    
-                    return (
-                      <TouchableOpacity
-                        key={regNo}
-                        style={[styles.receiverItem, isReceiver && styles.receiverItemActive]}
-                        onPress={() => {
-                          setReceiverId(regNo);
-                          setReceiverType('student');
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.receiverRadio}>
-                          <Ionicons 
-                            name={isReceiver ? "radio-button-on" : "radio-button-off"} 
-                            size={24} 
-                            color={isReceiver ? "#F59E0B" : "#9CA3AF"} 
-                          />
-                        </View>
-                        <View style={styles.receiverParticipantInfo}>
-                          <View style={styles.receiverNameRow}>
-                            <Text style={[styles.receiverParticipantName, isReceiver && styles.receiverParticipantNameActive]}>
-                              {student.fullName}
-                            </Text>
-                            {isReceiver && (
-                              <View style={styles.receiverActiveBadge}>
-                                <Ionicons name="qr-code" size={12} color="#FFF" />
-                                <Text style={styles.receiverActiveBadgeText}>RECEIVER</Text>
-                              </View>
-                            )}
-                          </View>
-                          <Text style={styles.receiverParticipantDetails}>
-                            {student.regNo} • {student.department}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </>
-              )}
-
-              {/* Selected Staff */}
-              {selectedStaff.size > 0 && (
-                <>
-                  <Text style={styles.receiverCategoryTitle}>Staff</Text>
-                  {Array.from(selectedStaff).map((staffCode) => {
-                    const staff = availableStaff.find(s => s.staffCode === staffCode);
-                    if (!staff) return null;
-                    
-                    const isReceiver = receiverId === staffCode && receiverType === 'staff';
-                    
-                    return (
-                      <TouchableOpacity
-                        key={staffCode}
-                        style={[styles.receiverItem, isReceiver && styles.receiverItemActive]}
-                        onPress={() => {
-                          setReceiverId(staffCode);
-                          setReceiverType('staff');
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.receiverRadio}>
-                          <Ionicons 
-                            name={isReceiver ? "radio-button-on" : "radio-button-off"} 
-                            size={24} 
-                            color={isReceiver ? "#F59E0B" : "#9CA3AF"} 
-                          />
-                        </View>
-                        <View style={styles.receiverParticipantInfo}>
-                          <View style={styles.receiverNameRow}>
-                            <Text style={[styles.receiverParticipantName, isReceiver && styles.receiverParticipantNameActive]}>
-                              {staff.fullName}
-                            </Text>
-                            {isReceiver && (
-                              <View style={styles.receiverActiveBadge}>
-                                <Ionicons name="qr-code" size={12} color="#FFF" />
-                                <Text style={styles.receiverActiveBadgeText}>RECEIVER</Text>
-                              </View>
-                            )}
-                          </View>
-                          <Text style={styles.receiverParticipantDetails}>
-                            {staff.staffCode} • {staff.department}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </>
-              )}
-            </View>
+            {selectedStudents.size > 0 && <Text style={s.catTitle}>STUDENTS</Text>}
+            {Array.from(selectedStudents).map(rn => {
+              const st = allStudents.find(x => x.regNo === rn); if (!st) return null;
+              const active = receiverId === rn;
+              return (
+                <TouchableOpacity key={rn} style={[s.receiverItem, active && s.receiverItemActive]} onPress={() => { setReceiverId(rn); setReceiverType('student'); }}>
+                  <Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={22} color={active ? '#F59E0B' : '#9CA3AF'} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.itemName, active && { color: '#92400E' }]}>{st.fullName}</Text>
+                    <Text style={s.itemSub}>{st.regNo}</Text>
+                  </View>
+                  {active && <View style={s.receiverBadge}><Text style={s.receiverBadgeText}>RECEIVER</Text></View>}
+                </TouchableOpacity>
+              );
+            })}
+            {selectedStaff.size > 0 && <Text style={s.catTitle}>STAFF</Text>}
+            {Array.from(selectedStaff).map(code => {
+              const st = allStaff.find(x => x.staffCode === code); if (!st) return null;
+              const active = receiverId === code;
+              return (
+                <TouchableOpacity key={code} style={[s.receiverItem, active && s.receiverItemActive]} onPress={() => { setReceiverId(code); setReceiverType('staff'); }}>
+                  <Ionicons name={active ? 'radio-button-on' : 'radio-button-off'} size={22} color={active ? '#F59E0B' : '#9CA3AF'} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.itemName, active && { color: '#92400E' }]}>{st.fullName}</Text>
+                    <Text style={s.itemSub}>{st.staffCode}</Text>
+                  </View>
+                  {active && <View style={s.receiverBadge}><Text style={s.receiverBadgeText}>RECEIVER</Text></View>}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
-        {/* Gate Pass Details */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Gate Pass Details</Text>
-
-          {/* Request Date & Time */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>REQUEST DATE & TIME</Text>
-            <View style={styles.requestDateTimeRow}>
-              <View style={styles.requestDateTimeBox}>
-                <Ionicons name="calendar-outline" size={18} color="#4B5563" />
-                <Text style={styles.requestDateTimeText}>
-                  {requestDateTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                </Text>
-              </View>
-              <View style={styles.requestDateTimeBox}>
-                <Ionicons name="time-outline" size={18} color="#4B5563" />
-                <Text style={styles.requestDateTimeText}>
-                  {requestDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Purpose */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Purpose *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter purpose for gate pass"
-              placeholderTextColor="#9CA3AF"
-              value={purpose}
-              onChangeText={setPurpose}
-              editable={!isSubmitting}
-            />
-          </View>
-
-          {/* Reason */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Reason *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Describe the reason for gate pass..."
-              placeholderTextColor="#9CA3AF"
-              value={reason}
-              onChangeText={setReason}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              editable={!isSubmitting}
-            />
-          </View>
-
-          {/* Attachment */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Attachment (Optional)</Text>
-            <TouchableOpacity style={styles.uploadBtn} onPress={pickAttachment}>
-              <Ionicons name="attach-outline" size={24} color="#9CA3AF" />
-              <Text style={styles.uploadText}>
-                {attachment ? attachment.name : 'Tap to upload image'}
-              </Text>
-              {attachment && (
-                <TouchableOpacity onPress={() => setAttachment(null)}>
-                  <Ionicons name="close-circle" size={20} color="#EF4444" />
-                </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-            {attachment && (
-              <Image source={{ uri: attachment.base64Uri }} style={styles.attachmentPreview} resizeMode="cover" />
-            )}
-          </View>
+        {/* Gate pass details */}
+        <View style={s.card}>
+          <Text style={s.sectionTitle}>Gate Pass Details</Text>
+          <Text style={s.fieldLabel}>Purpose *</Text>
+          <TextInput style={s.input} placeholder="Enter purpose" placeholderTextColor="#9CA3AF" value={purpose} onChangeText={setPurpose} />
+          <Text style={s.fieldLabel}>Reason *</Text>
+          <TextInput style={[s.input, { height: 90, textAlignVertical: 'top', paddingTop: 12 }]} placeholder="Describe the reason..." placeholderTextColor="#9CA3AF" value={reason} onChangeText={setReason} multiline />
+          <Text style={s.fieldLabel}>Attachment (Optional)</Text>
+          <TouchableOpacity style={s.uploadBtn} onPress={pickAttachment}>
+            <Ionicons name="attach-outline" size={22} color="#9CA3AF" />
+            <Text style={s.uploadText}>{attachment ? attachment.name : 'Tap to upload image'}</Text>
+            {attachment && <TouchableOpacity onPress={() => setAttachment(null)}><Ionicons name="close-circle" size={20} color="#EF4444" /></TouchableOpacity>}
+          </TouchableOpacity>
+          {attachment && <Image source={{ uri: attachment.base64Uri }} style={s.attachPreview} resizeMode="cover" />}
         </View>
 
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[styles.submitButton, (isSubmitting || getTotalSelectedCount() === 0) && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={isSubmitting || getTotalSelectedCount() === 0}
-        >
-          {isSubmitting ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-              <Text style={styles.submitButtonText}>
-                Submit for {getTotalSelectedCount()} Participant{getTotalSelectedCount() !== 1 ? 's' : ''}
-              </Text>
-            </>
-          )}
+        {/* Submit */}
+        <TouchableOpacity style={[s.submitBtn, totalSelected === 0 && s.submitBtnDisabled]} onPress={handleSubmit} disabled={totalSelected === 0 || isSubmitting}>
+          <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+          <Text style={s.submitBtnText}>Submit for {totalSelected} Participant{totalSelected !== 1 ? 's' : ''}</Text>
         </TouchableOpacity>
-
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <SuccessModal
+        visible={showSuccessModal}
+        title="Bulk Pass Submitted"
+        message={`Gate pass request submitted for ${totalSelected} participant${totalSelected !== 1 ? 's' : ''}. Awaiting HR approval.`}
+        onClose={() => { setShowSuccessModal(false); handleGoBack(); }}
+        autoClose={true}
+        autoCloseDelay={2500}
+      />
+      <ErrorModal
+        visible={showErrorModal}
+        type="api"
+        title="Submission Failed"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
+      />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  infoBannerText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#1E40AF',
-  },
-  content: {
-    flex: 1,
-  },
-  section: {
-    backgroundColor: '#FFFFFF',
-    marginTop: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FEF3C7',
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
-  },
-  checkboxContent: {
-    flex: 1,
-  },
-  checkboxLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  checkboxSubtext: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 4,
-    gap: 4,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  tabActive: {
-    backgroundColor: '#F59E0B',
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  tabTextActive: {
-    color: '#FFF',
-  },
-  tabBadge: {
-    backgroundColor: '#FFF',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    minWidth: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-  summaryCard: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  summaryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  summaryTextContainer: {
-    alignItems: 'flex-start',
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  summaryValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  summaryDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#E5E7EB',
-  },
-  receiverCategoryTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#6B7280',
-    marginTop: 12,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  filterContainer: {
-    marginBottom: 16,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  yearFilterScroll: {
-    flexGrow: 0,
-  },
-  yearFilterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  yearFilterButtonActive: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-  },
-  yearFilterText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  yearFilterTextActive: {
-    color: '#F59E0B',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  selectAllButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 6,
-  },
-  selectAllText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#F59E0B',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 16,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  loadingContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
-  participantList: {
-    gap: 8,
-  },
-  participantItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 12,
-    gap: 12,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-  },
-  participantInfo: {
-    flex: 1,
-  },
-  participantName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  participantDetails: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: '#9CA3AF',
-    marginTop: 12,
-  },
-  receiverInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    gap: 8,
-  },
-  receiverInfoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#92400E',
-    fontWeight: '600',
-  },
-  receiverList: {
-    gap: 10,
-  },
-  receiverItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 14,
-    gap: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  receiverItemActive: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-  },
-  receiverRadio: {
-    width: 24,
-    height: 24,
-  },
-  receiverParticipantInfo: {
-    flex: 1,
-  },
-  receiverNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  receiverParticipantName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  receiverParticipantNameActive: {
-    color: '#92400E',
-  },
-  receiverActiveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F59E0B',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    gap: 4,
-  },
-  receiverActiveBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  receiverParticipantDetails: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  purposeButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
-  },
-  purposeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  purposeButtonActive: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#F59E0B',
-  },
-  purposeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  purposeButtonTextActive: {
-    color: '#F59E0B',
-  },
-  input: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  textArea: {
-    height: 100,
-    paddingTop: 12,
-  },
-  dateTimeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  dateTimeText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1F2937',
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#10B981',
-    marginHorizontal: 20,
-    marginTop: 20,
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginLeft: 8,
-  },
-  requestDateTimeRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  requestDateTimeBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  requestDateTimeText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  uploadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 10,
-  },
-  uploadText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  attachmentPreview: {
-    width: '100%',
-    height: 160,
-    borderRadius: 12,
-    marginTop: 10,
-  },
+const dd = StyleSheet.create({
+  wrap: { marginBottom: 12 },
+  label: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6 },
+  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  btnText: { fontSize: 15, color: '#1F2937', fontWeight: '500' },
+  placeholder: { color: '#9CA3AF' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', padding: 20 },
+  sheetTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 12 },
+  option: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
+  optionActive: { backgroundColor: '#FEF3C7', marginHorizontal: -4, paddingHorizontal: 4, borderRadius: 8 },
+  optionText: { fontSize: 15, color: '#374151' },
+  optionTextActive: { color: '#F59E0B', fontWeight: '700' },
+});
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F3F4F6' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  infoBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  infoBannerText: { flex: 1, fontSize: 13, color: '#1E40AF' },
+  card: { backgroundColor: '#FFF', marginTop: 10, paddingHorizontal: 16, paddingVertical: 16 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  summaryItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  summaryLabel: { fontSize: 12, color: '#6B7280', fontWeight: '600' },
+  summaryVal: { fontSize: 22, fontWeight: '700', color: '#1F2937' },
+  checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: '#FEF3C7', padding: 14, borderRadius: 12 },
+  checkLabel: { fontSize: 15, fontWeight: '600', color: '#1F2937' },
+  checkSub: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  tabs: { flexDirection: 'row', backgroundColor: '#F3F4F6', borderRadius: 10, padding: 4, gap: 4 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 8, gap: 6 },
+  tabActive: { backgroundColor: '#F59E0B' },
+  tabText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
+  tabTextActive: { color: '#FFF' },
+  badge: { backgroundColor: '#FFF', paddingHorizontal: 7, paddingVertical: 1, borderRadius: 10 },
+  badgeText: { fontSize: 11, fontWeight: '700', color: '#F59E0B' },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  countText: { fontSize: 14, fontWeight: '600', color: '#374151' },
+  selectAllBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#F3F4F6', borderRadius: 6 },
+  selectAllText: { fontSize: 13, fontWeight: '600', color: '#F59E0B' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F3F4F6', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12, gap: 8 },
+  searchInput: { flex: 1, fontSize: 15, color: '#1F2937' },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F9FAFB' },
+  itemName: { fontSize: 15, fontWeight: '600', color: '#1F2937' },
+  itemSub: { fontSize: 12, color: '#6B7280', marginTop: 2 },
+  empty: { alignItems: 'center', paddingVertical: 30, gap: 8 },
+  emptyText: { fontSize: 14, color: '#9CA3AF' },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 12 },
+  receiverInfo: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', padding: 10, borderRadius: 8, marginBottom: 12, gap: 8 },
+  receiverInfoText: { flex: 1, fontSize: 13, color: '#92400E', fontWeight: '500' },
+  catTitle: { fontSize: 12, fontWeight: '700', color: '#9CA3AF', marginTop: 10, marginBottom: 6, letterSpacing: 0.5 },
+  receiverItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderRadius: 10, paddingHorizontal: 8, borderWidth: 1.5, borderColor: 'transparent', marginBottom: 6 },
+  receiverItemActive: { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
+  receiverBadge: { backgroundColor: '#F59E0B', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  receiverBadgeText: { fontSize: 10, fontWeight: '700', color: '#FFF' },
+  fieldLabel: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
+  input: { backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: '#1F2937' },
+  uploadBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#D1D5DB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, gap: 10, marginTop: 4 },
+  uploadText: { flex: 1, fontSize: 14, color: '#6B7280' },
+  attachPreview: { width: '100%', height: 150, borderRadius: 10, marginTop: 10 },
+  submitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#10B981', marginHorizontal: 16, marginTop: 16, paddingVertical: 16, borderRadius: 12, gap: 8 },
+  submitBtnDisabled: { opacity: 0.5 },
+  submitBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
 });
 
 export default HODBulkGatePassScreen;

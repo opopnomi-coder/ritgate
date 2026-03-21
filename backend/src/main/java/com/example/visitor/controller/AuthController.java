@@ -12,6 +12,7 @@ import com.example.visitor.repository.StaffRepository;
 import com.example.visitor.repository.HODRepository;
 import com.example.visitor.repository.HRRepository;
 import com.example.visitor.service.EmailService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*", allowedHeaders = "*")
+@Slf4j
 public class AuthController {
     
     @Autowired
@@ -1220,5 +1222,68 @@ public class AuthController {
         response.put("message", "Backend is running");
         response.put("timestamp", LocalDateTime.now().toString());
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Detect the actual role of a staff code.
+     * Returns HOD if the staff member's name appears in the students.hod column,
+     * HR if their role contains "HR", otherwise STAFF.
+     */
+    @GetMapping("/detect-role/{staffCode}")
+    public ResponseEntity<?> detectStaffRole(@PathVariable String staffCode) {
+        try {
+            String code = sanitizeInput(staffCode);
+            if (code == null || code.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Staff code required"));
+            }
+
+            // Check if it's a student
+            if (studentRepository.findByRegNo(code).isPresent()) {
+                return ResponseEntity.ok(Map.of("success", true, "role", "STUDENT"));
+            }
+
+            // Check staff table
+            Optional<Staff> staffOpt = staffRepository.findByStaffCode(code);
+            if (staffOpt.isEmpty()) {
+                return ResponseEntity.ok(Map.of("success", false, "role", "UNKNOWN", "message", "User not found"));
+            }
+
+            Staff staff = staffOpt.get();
+            String staffName = staff.getStaffName();
+            String role = staff.getRole() != null ? staff.getRole() : "";
+
+            // Check if HR
+            if (role.toUpperCase().contains("HR")) {
+                return ResponseEntity.ok(Map.of("success", true, "role", "HR"));
+            }
+
+            // Check if HOD — name appears in students.hod column
+            java.util.List<String> hodNames = studentRepository.findHodNamesByDepartment(staff.getDepartment());
+            for (String hodName : hodNames) {
+                if (hodName != null && !hodName.isBlank()) {
+                    String cleaned = hodName.split("/")[0].trim().replaceAll("(?i)^dr\\.?\\s*", "").trim();
+                    if (cleaned.equalsIgnoreCase(staffName) || staffName.toLowerCase().contains(cleaned.toLowerCase()) || cleaned.toLowerCase().contains(staffName.toLowerCase())) {
+                        return ResponseEntity.ok(Map.of("success", true, "role", "HOD"));
+                    }
+                }
+            }
+
+            // Also check all departments — one person can be HOD for multiple depts
+            java.util.List<String> allHodNames = studentRepository.findAllDistinctHodNames();
+            for (String hodName : allHodNames) {
+                if (hodName != null && !hodName.isBlank()) {
+                    String cleaned = hodName.split("/")[0].trim().replaceAll("(?i)^dr\\.?\\s*", "").trim();
+                    if (cleaned.equalsIgnoreCase(staffName)) {
+                        return ResponseEntity.ok(Map.of("success", true, "role", "HOD"));
+                    }
+                }
+            }
+
+            return ResponseEntity.ok(Map.of("success", true, "role", "STAFF"));
+
+        } catch (Exception e) {
+            log.error("Error detecting role for {}: {}", staffCode, e.getMessage());
+            return ResponseEntity.ok(Map.of("success", true, "role", "STAFF")); // safe fallback
+        }
     }
 }

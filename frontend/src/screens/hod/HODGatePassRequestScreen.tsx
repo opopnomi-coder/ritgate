@@ -94,9 +94,7 @@ const HODGatePassRequestScreen: React.FC<HODGatePassRequestScreenProps> = ({ use
       return;
     }
 
-    // Navigate back immediately — fire API in background
-    if (onBack) onBack();
-
+    setLoading(true);
     try {
       const result = await apiService.submitHODGatePassRequest(
         user.hodCode,
@@ -104,9 +102,17 @@ const HODGatePassRequestScreen: React.FC<HODGatePassRequestScreenProps> = ({ use
         reason.trim(),
         attachment?.base64Uri
       );
-      if (!result.success) console.warn('HOD gate pass submit failed:', result.message);
+      if (result.success) {
+        setShowSuccessModal(true);
+      } else {
+        setErrorMessage(result.message || 'Failed to submit request');
+        setShowErrorModal(true);
+      }
     } catch (error: any) {
-      console.error('HOD submit error:', error);
+      setErrorMessage(error.message || 'An error occurred');
+      setShowErrorModal(true);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -244,7 +250,8 @@ const HODGatePassRequestScreen: React.FC<HODGatePassRequestScreenProps> = ({ use
         title="Request Submitted"
         message="Your gate pass request has been submitted successfully. It will be reviewed by HR."
         onClose={() => { setShowSuccessModal(false); if (onBack) onBack(); }}
-        autoClose={false}
+        autoClose={true}
+        autoCloseDelay={2500}
       />
       <ErrorModal
         visible={showErrorModal}

@@ -311,7 +311,7 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
                       {request.passType === 'BULK' ? (request.requestedByStaffName || `Staff: ${request.requestedByStaffCode}`) : request.studentName || 'Unknown'}
                     </Text>
                     <View style={[styles.passTypePill, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
-                      <Text style={[styles.passTypePillText, { color: theme.text }]}>{request.passType === 'BULK' ? 'Bulk Pass' : 'Gatepass'}</Text>
+                      <Text style={[styles.passTypePillText, { color: theme.text }]}>{request.passType === 'BULK' ? 'Bulk Gatepass' : 'Single Gatepass'}</Text>
                     </View>
                   </View>
                   <Text style={[styles.studentIdSub, { color: theme.textSecondary }]}>
@@ -533,8 +533,8 @@ const styles = StyleSheet.create({
   headerMainInfo: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   requestStudentName: { fontSize: 15, fontWeight: '700' },
-  passTypePill: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
-  passTypePillText: { fontSize: 12, fontWeight: '600' },
+  passTypePill: { borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1 },
+  passTypePillText: { fontSize: 9, fontWeight: '600' },
   studentIdSub: { fontSize: 13, marginTop: 2 },
   timeAgoContainer: { alignSelf: 'flex-start', paddingTop: 4 },
   timeAgoText: { fontSize: 12 },
@@ -542,8 +542,8 @@ const styles = StyleSheet.create({
   detailItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   detailText: { fontSize: 14, fontWeight: '600' },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  viewBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, gap: 6 },
-  viewBadgeText: { fontSize: 13, fontWeight: '600' },
+  viewBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 4 },
+  viewBadgeText: { fontSize: 9, fontWeight: '600' },
   statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   statusText: { fontSize: 12, fontWeight: '700' },
   viewButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, gap: 6 },

@@ -107,9 +107,8 @@ const SwipeBackWrapper: React.FC<SwipeBackWrapperProps> = ({
     <PanGestureHandler
       onGestureEvent={onGestureEvent}
       onHandlerStateChange={onHandlerStateChange}
-      activeOffsetX={[0, 20]}
-      failOffsetY={[-8, 8]}
-      minDist={12}
+      activeOffsetX={[0, 25]}
+      failOffsetY={[-15, 15]}
       enabled={!locked}
     >
       <Animated.View

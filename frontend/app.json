@@ -32,7 +32,10 @@
         "ACCESS_NETWORK_STATE",
         "ACCESS_WIFI_STATE",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
       ],
       "usesCleartextTraffic": true
     },
@@ -44,6 +47,15 @@
         "expo-camera",
         {
           "cameraPermission": "Allow MyGate to access your camera for QR code scanning"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#06B6D4",
+          "sounds": [],
+          "mode": "production"
         }
       ],
       "expo-asset",

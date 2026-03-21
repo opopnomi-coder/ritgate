@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useProfile } from '../../context/ProfileContext';
+import { useActionLock } from '../../context/ActionLockContext';
 import { apiService } from '../../services/api';
 import ThemePresetSelector from '../../components/ThemePresetSelector';
 import ConfirmationModal from '../../components/ConfirmationModal';
@@ -41,6 +42,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 }) => {
   const { theme, isDark, toggleTheme, resetTheme } = useTheme();
   const { profileImage, captureImage } = useProfile();
+  const { lockSwipe, unlockSwipe } = useActionLock();
 
   const [profileData, setProfileData] = useState({
     email: user.email || '',
@@ -56,6 +58,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [editEmail, setEditEmail] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [outerScrollEnabled, setOuterScrollEnabled] = useState(true);
 
   useEffect(() => {
     const onBackPress = () => {
@@ -83,7 +86,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const fetchStats = async () => {
     if (!refreshing) setLoadingStats(true);
     try {
-      if (userType.toUpperCase() === 'SECURITY') {
+      const type = userType.toUpperCase();
+
+      if (type === 'SECURITY') {
         const response = await apiService.getActivePersons();
         if (response.success && response.data) {
           const validPersons = response.data.filter((person: any) => person.name && !person.name.startsWith('QR Not Found') && !person.name.includes('Unknown'));
@@ -91,8 +96,46 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           const exited = validPersons.filter((p: any) => p.status === 'EXITED').length;
           setStats({ stat1: active, stat2: exited, stat3: validPersons.length });
         }
-      } else {
-        setStats({ stat1: 0, stat2: 0, stat3: 0 });
+      } else if (type === 'STUDENT') {
+        const response = await apiService.getStudentGatePassRequests(user.regNo);
+        if (response.success && response.requests) {
+          const reqs = response.requests;
+          setStats({
+            stat1: reqs.filter((r: any) => r.status === 'APPROVED').length,
+            stat2: reqs.filter((r: any) => r.status === 'REJECTED').length,
+            stat3: reqs.filter((r: any) => r.status !== 'APPROVED' && r.status !== 'REJECTED').length,
+          });
+        }
+      } else if (type === 'STAFF') {
+        const response = await apiService.getStaffOwnGatePassRequests(user.staffCode);
+        if (response.success && response.data) {
+          const reqs = response.data;
+          setStats({
+            stat1: reqs.filter((r: any) => r.status === 'APPROVED').length,
+            stat2: reqs.filter((r: any) => r.status === 'REJECTED').length,
+            stat3: reqs.filter((r: any) => r.status !== 'APPROVED' && r.status !== 'REJECTED').length,
+          });
+        }
+      } else if (type === 'HOD') {
+        const response = await apiService.getHODMyGatePassRequests(user.hodCode);
+        if (response.success && response.requests) {
+          const reqs = response.requests;
+          setStats({
+            stat1: reqs.filter((r: any) => r.status === 'APPROVED').length,
+            stat2: reqs.filter((r: any) => r.status === 'REJECTED').length,
+            stat3: reqs.filter((r: any) => r.status !== 'APPROVED' && r.status !== 'REJECTED').length,
+          });
+        }
+      } else if (type === 'HR') {
+        const response = await apiService.getHRPendingRequests(user.hrCode);
+        if (response.success && response.data) {
+          const reqs = response.data;
+          setStats({
+            stat1: reqs.filter((r: any) => r.hrApproval === 'APPROVED').length,
+            stat2: reqs.filter((r: any) => r.hrApproval === 'REJECTED').length,
+            stat3: reqs.filter((r: any) => r.hrApproval !== 'APPROVED' && r.hrApproval !== 'REJECTED').length,
+          });
+        }
       }
     } catch (error) {
       console.log('Error fetching stats:', error);
@@ -135,6 +178,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     if ('firstName' in user) return `${user.firstName} ${user.lastName}`;
     if ('staffName' in user) return user.staffName;
     if ('hodName' in user) return user.hodName;
+    if ('hrName' in user) return user.hrName;
     if ('securityName' in user) return user.securityName;
     if ('name' in user) return user.name;
     return 'User';
@@ -145,7 +189,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     if (userType.toUpperCase() === 'SECURITY') return user.gateAssignment || user.gateAssigned || user.shift || 'Main Gate';
     return user.department || 'General';
   };
-  const getID = () => user.regNo || user.staffCode || user.hodCode || user.securityId || '';
+  const getID = () => user.regNo || user.staffCode || user.hodCode || user.hrCode || user.securityId || '';
   const getInitials = () => {
     const name = getName();
     if (!name || typeof name !== 'string') return 'U';
@@ -160,7 +204,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
       </View>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} nestedScrollEnabled scrollEnabled={outerScrollEnabled} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}>
         <View style={styles.headerSection}>
           <View style={styles.avatarContainer}>
             <View style={[styles.avatarRing, { borderColor: theme.accent }]}>
@@ -199,7 +243,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <Text style={[styles.sectionHeader, { color: theme.text }]}>INTERFACE THEME</Text>
           <TouchableOpacity onPress={resetTheme}><Text style={[styles.resetText, { color: theme.textSecondary }]}>Reset</Text></TouchableOpacity>
         </View>
-        <ThemePresetSelector />
+        <ThemePresetSelector onScrollLock={(locked) => {
+          setOuterScrollEnabled(!locked);
+          if (locked) lockSwipe(); else unlockSwipe();
+        }} />
 
         <View style={styles.sectionHeaderContainer}>
           <Text style={[styles.sectionHeader, { color: theme.text }]}>PERSONAL INFORMATION</Text>

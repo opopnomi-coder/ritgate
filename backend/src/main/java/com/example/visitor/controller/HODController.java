@@ -311,78 +311,72 @@ public class HODController {
     
     // ==================== HOD BULK GATE PASS ENDPOINTS ====================
     
-    // Get students from HOD's department with optional year filter
+    // Resolve all departments this HOD has control over (via students.hod column)
+    private List<String> getHODDepartments(String hodCode) {
+        HOD hod = hodRepository.findByHodCode(hodCode)
+            .orElseThrow(() -> new RuntimeException("HOD not found"));
+        String hodName = hod.getHodName();
+
+        // Find all departments where this staff member's name appears in students.hod
+        List<String> allHodDepts = studentRepository.findAll().stream()
+            .filter(s -> s.getHod() != null && !s.getHod().isBlank() && s.getDepartment() != null)
+            .filter(s -> {
+                String cleaned = s.getHod().split("/")[0].trim().replaceAll("(?i)^dr\\.?\\s*", "").trim();
+                return cleaned.equalsIgnoreCase(hodName) || hodName.toLowerCase().contains(cleaned.toLowerCase());
+            })
+            .map(Student::getDepartment)
+            .distinct()
+            .collect(Collectors.toList());
+
+        // Always include the HOD's own staff department as fallback
+        if (allHodDepts.isEmpty() && hod.getDepartment() != null) {
+            allHodDepts = java.util.Arrays.asList(hod.getDepartment());
+        }
+        return allHodDepts;
+    }
+
+    // Get all students across all departments this HOD controls
     @GetMapping("/{hodCode}/department/students")
-    public ResponseEntity<?> getDepartmentStudents(
-            @PathVariable String hodCode,
-            @RequestParam(required = false) Integer year) {
+    public ResponseEntity<?> getDepartmentStudents(@PathVariable String hodCode) {
         try {
-            // Get HOD to find their department
-            HOD hod = hodRepository.findByHodCode(hodCode)
-                .orElseThrow(() -> new RuntimeException("HOD not found"));
-            
-            // Get all students from the department
-            List<Student> allStudents = studentRepository.findAll().stream()
-                .filter(s -> s.getDepartment() != null && 
-                           s.getDepartment().equalsIgnoreCase(hod.getDepartment()) &&
-                           s.getIsActive())
-                .collect(Collectors.toList());
-            
-            // Filter by year if provided
-            if (year != null) {
-                allStudents = allStudents.stream()
-                    .filter(s -> s.getYear() != null && s.getYear().startsWith(year.toString()))
-                    .collect(Collectors.toList());
-            }
-            
-            // Map to response format
-            List<Map<String, Object>> students = allStudents.stream()
+            List<String> hodDepts = getHODDepartments(hodCode);
+            log.info("HOD {} controls departments: {}", hodCode, hodDepts);
+
+            List<Map<String, Object>> students = studentRepository.findAll().stream()
+                .filter(s -> s.getDepartment() != null && hodDepts.contains(s.getDepartment()) && s.getIsActive())
                 .map(s -> {
-                    Map<String, Object> studentMap = new HashMap<>();
-                    studentMap.put("id", s.getId());
-                    studentMap.put("regNo", s.getRegNo());
-                    studentMap.put("fullName", s.getFullName());
-                    studentMap.put("department", s.getDepartment());
-                    studentMap.put("year", parseYear(s.getYear()));
-                    return studentMap;
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", s.getId());
+                    m.put("regNo", s.getRegNo());
+                    m.put("fullName", s.getFullName());
+                    m.put("department", s.getDepartment());
+                    m.put("year", s.getYear() != null ? s.getYear() : "");
+                    m.put("section", s.getSection() != null ? s.getSection() : "");
+                    return m;
                 })
                 .collect(Collectors.toList());
-            
-            log.info("Fetched {} students for HOD {} (department: {}, year: {})", 
-                students.size(), hodCode, hod.getDepartment(), year);
-            
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "students", students,
-                "count", students.size()
-            ));
-            
+
+            return ResponseEntity.ok(Map.of("success", true, "students", students, "count", students.size()));
         } catch (Exception e) {
-            log.error("Error fetching department students", e);
-            return ResponseEntity.internalServerError().body(Map.of(
-                "success", false,
-                "message", "Failed to fetch students: " + e.getMessage()
-            ));
+            log.error("Error fetching HOD students", e);
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
         }
     }
-    
-    // Get staff from HOD's department
+
+    // Get all staff across all departments this HOD controls
     @GetMapping("/{hodCode}/department/staff")
     public ResponseEntity<?> getDepartmentStaff(@PathVariable String hodCode) {
         try {
-            // Get HOD to find their department
+            List<String> hodDepts = getHODDepartments(hodCode);
+
             HOD hod = hodRepository.findByHodCode(hodCode)
                 .orElseThrow(() -> new RuntimeException("HOD not found"));
-            
-            // Get all staff from the department
-            List<Staff> allStaff = staffRepository.findAll().stream()
-                .filter(s -> s.getDepartment() != null && 
-                           s.getDepartment().equalsIgnoreCase(hod.getDepartment()) &&
-                           s.getIsActive())
-                .collect(Collectors.toList());
-            
-            // Map to response format
-            List<Map<String, Object>> staff = allStaff.stream()
+            String hodName = hod.getHodName() != null ? hod.getHodName().trim().toLowerCase() : "";
+
+            List<Map<String, Object>> staff = staffRepository.findAll().stream()
+                .filter(s -> s.getDepartment() != null && hodDepts.contains(s.getDepartment()) && s.getIsActive())
+                .filter(s -> !s.getStaffCode().equalsIgnoreCase(hodCode))
+                .filter(s -> s.getStaffName() == null || !s.getStaffName().trim().toLowerCase().equals(hodName))
                 .map(s -> {
                     Map<String, Object> staffMap = new HashMap<>();
                     staffMap.put("id", s.getId());
@@ -392,9 +386,8 @@ public class HODController {
                     return staffMap;
                 })
                 .collect(Collectors.toList());
-            
-            log.info("Fetched {} staff for HOD {} (department: {})", 
-                staff.size(), hodCode, hod.getDepartment());
+
+            log.info("Fetched {} staff for HOD {} (excluded self) across depts: {}", staff.size(), hodCode, hodDepts);
             
             return ResponseEntity.ok(Map.of(
                 "success", true,

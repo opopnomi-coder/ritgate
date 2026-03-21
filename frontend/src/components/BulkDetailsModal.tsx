@@ -202,40 +202,42 @@ const BulkDetailsModal: React.FC<BulkDetailsModalProps> = ({
               <Text style={[styles.reasonText, { color: theme.textSecondary }]} numberOfLines={2}>{details?.reason || 'N/A'}</Text>
             </View>
 
-            {/* Row 4 — Attachment + Remarks side by side */}
-            <View style={styles.midRow}>
-              {details?.attachmentUri ? (
-                <TouchableOpacity
-                  style={[styles.attachmentThumb, !details?.staffRemark && !details?.hodRemark && { flex: 1 }]}
-                  onPress={() => setShowFullscreenAttachment(true)}
-                  activeOpacity={0.85}
-                >
-                  <Image source={{ uri: details.attachmentUri }} style={styles.thumbImage} resizeMode="cover" />
-                  <View style={styles.thumbOverlay}>
-                    <Ionicons name="expand-outline" size={16} color="#FFF" />
-                    <Text style={styles.thumbText}>PREVIEW</Text>
-                  </View>
-                </TouchableOpacity>
-              ) : null}
+            {/* Row 4 — Attachment + Remarks side by side (only if content exists) */}
+            {(details?.attachmentUri || details?.staffRemark || details?.hodRemark) && (
+              <View style={styles.midRow}>
+                {details?.attachmentUri ? (
+                  <TouchableOpacity
+                    style={[styles.attachmentThumb, !details?.staffRemark && !details?.hodRemark && { flex: 1 }]}
+                    onPress={() => setShowFullscreenAttachment(true)}
+                    activeOpacity={0.85}
+                  >
+                    <Image source={{ uri: details.attachmentUri }} style={styles.thumbImage} resizeMode="cover" />
+                    <View style={styles.thumbOverlay}>
+                      <Ionicons name="expand-outline" size={16} color="#FFF" />
+                      <Text style={styles.thumbText}>PREVIEW</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
 
-              {(details?.staffRemark || details?.hodRemark) && (
-                <View style={[styles.remarksBox, { backgroundColor: theme.surface, borderColor: theme.border }, !details?.attachmentUri && { flex: 1 }]}>
-                  <Text style={[styles.remarksSectionLabel, { color: theme.textTertiary }]}>REMARKS</Text>
-                  {details?.staffRemark && (
-                    <View style={[styles.remarkItem, { backgroundColor: theme.inputBackground, borderLeftColor: theme.warning }]}>
-                      <Text style={[styles.remarkRole, { color: theme.textSecondary }]}>Staff</Text>
-                      <Text style={[styles.remarkText, { color: theme.text }]} numberOfLines={2}>{details.staffRemark}</Text>
-                    </View>
-                  )}
-                  {details?.hodRemark && (
-                    <View style={[styles.remarkItem, { backgroundColor: theme.inputBackground, borderLeftColor: theme.warning, marginTop: 6 }]}>
-                      <Text style={[styles.remarkRole, { color: theme.textSecondary }]}>HOD</Text>
-                      <Text style={[styles.remarkText, { color: theme.text }]} numberOfLines={2}>{details.hodRemark}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
+                {(details?.staffRemark || details?.hodRemark) && (
+                  <View style={[styles.remarksBox, { backgroundColor: theme.surface, borderColor: theme.border }, !details?.attachmentUri && { flex: 1 }]}>
+                    <Text style={[styles.remarksSectionLabel, { color: theme.textTertiary }]}>REMARKS</Text>
+                    {details?.staffRemark && (
+                      <View style={[styles.remarkItem, { backgroundColor: theme.inputBackground, borderLeftColor: theme.warning }]}>
+                        <Text style={[styles.remarkRole, { color: theme.textSecondary }]}>Staff</Text>
+                        <Text style={[styles.remarkText, { color: theme.text }]} numberOfLines={2}>{details.staffRemark}</Text>
+                      </View>
+                    )}
+                    {details?.hodRemark && (
+                      <View style={[styles.remarkItem, { backgroundColor: theme.inputBackground, borderLeftColor: theme.warning, marginTop: 6 }]}>
+                        <Text style={[styles.remarkRole, { color: theme.textSecondary }]}>HOD</Text>
+                        <Text style={[styles.remarkText, { color: theme.text }]} numberOfLines={2}>{details.hodRemark}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Row 5 — View Participants button */}
             {participants.length > 0 && (

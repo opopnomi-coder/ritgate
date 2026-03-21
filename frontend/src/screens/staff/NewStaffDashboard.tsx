@@ -418,7 +418,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
                     ) : (
                       <View style={[styles.passTypePill, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
                         <Text style={[styles.passTypePillText, { color: theme.text }]}>
-                          {request.passType === 'BULK' ? 'Bulk Pass' : 'Gatepass'}
+                          {request.passType === 'BULK' ? 'Bulk Gatepass' : 'Single Gatepass'}
                         </Text>
                       </View>
                     )}
@@ -925,13 +925,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   passTypePill: {
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
     borderWidth: 1,
   },
   passTypePillText: {
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: '600',
   },
   statusBadge: {

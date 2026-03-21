@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, ActivityIndicator, Modal, Alert,
+  RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
 import { Staff } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
+import SinglePassDetailsModal from '../../components/SinglePassDetailsModal';
 import MyRequestsBulkModal from '../../components/MyRequestsBulkModal';
 import GatePassQRModal from '../../components/GatePassQRModal';
 
@@ -68,7 +69,7 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
   };
 
   const handleViewQR = async (request: any, isBulk: boolean = false) => {
-    if (request.status !== 'APPROVED') { Alert.alert('Not Available', 'QR code is only available for approved requests'); return; }
+    if (request.status !== 'APPROVED') return;
     setSelectedRequest(request);
     setQrCodeData(null);
     setManualCode(null);
@@ -82,7 +83,6 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
         if (result.success && result.qrCode) { setQrCodeData(result.qrCode); setManualCode(result.manualCode || null); }
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to fetch QR code');
       setShowQRModal(false);
     }
   };
@@ -118,7 +118,7 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
             <View style={styles.cardNameRow}>
               <Text style={[styles.cardName, { color: theme.text }]} numberOfLines={1}>{name}</Text>
               <View style={[styles.typePillInline, { backgroundColor: theme.inputBackground }]}>
-                <Text style={[styles.typePillInlineText, { color: theme.text }]}>{isBulk ? 'Bulk Pass' : 'Single Pass'}</Text>
+                <Text style={[styles.typePillInlineText, { color: theme.text }]}>{isBulk ? 'Bulk Gatepass' : 'Single Gatepass'}</Text>
               </View>
             </View>
             <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]}>Staff • {user.department || 'Department'}</Text>
@@ -212,116 +212,26 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      <Modal visible={showDetailModal} animationType="slide" transparent={true} onRequestClose={() => setShowDetailModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Request Status</Text>
-              <TouchableOpacity onPress={() => setShowDetailModal(false)}>
-                <Ionicons name="close" size={24} color={theme.textTertiary} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {selectedRequest && (
-                <>
-                  <View style={[styles.requestInfoCard, { backgroundColor: theme.inputBackground }]}>
-                    <View style={styles.requestInfoRow}>
-                      <Text style={[styles.requestInfoLabel, { color: theme.textSecondary }]}>REQUEST ID</Text>
-                      <Text style={[styles.requestInfoValue, { color: theme.text }]}>#{selectedRequest.id}</Text>
-                    </View>
-                    <View style={styles.requestInfoRow}>
-                      <Text style={[styles.requestInfoLabel, { color: theme.textSecondary }]}>TYPE</Text>
-                      <Text style={[styles.requestInfoValue, { color: theme.text }]}>{selectedRequest.passType === 'BULK' ? 'Bulk Pass' : 'Single Pass'}</Text>
-                    </View>
-                    <View style={styles.requestInfoRow}>
-                      <Text style={[styles.requestInfoLabel, { color: theme.textSecondary }]}>DATE</Text>
-                      <Text style={[styles.requestInfoValue, { color: theme.text }]}>
-                        {new Date(selectedRequest.passType === 'BULK' ? selectedRequest.exitDateTime : selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.reasonSection}>
-                    <Text style={[styles.reasonLabel, { color: theme.textSecondary }]}>REASON</Text>
-                    <Text style={[styles.reasonText, { color: theme.text }]}>{selectedRequest.reason || selectedRequest.purpose}</Text>
-                  </View>
-
-                  <View style={styles.timeline}>
-                    <Text style={[styles.timelineHeading, { color: theme.text }]}>Timeline</Text>
-                    <View style={[styles.timelineBar, { backgroundColor: theme.success }]} />
-
-                    <View style={styles.timelineItem}>
-                      <View style={[styles.timelineIcon, { backgroundColor: theme.success }]}>
-                        <Ionicons name="checkmark" size={20} color="#FFF" />
-                      </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={[styles.timelineTitle, { color: theme.text }]}>Request Submitted</Text>
-                        <Text style={[styles.timelineStatus, { color: theme.success }]}>✓ Completed</Text>
-                      </View>
-                    </View>
-
-                    <View style={[styles.timelineLine, { backgroundColor: theme.success }]} />
-
-                    <View style={styles.timelineItem}>
-                      <View style={[styles.timelineIcon, { backgroundColor: theme.success }]}>
-                        <Ionicons name="checkmark" size={20} color="#FFF" />
-                      </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={[styles.timelineTitle, { color: theme.text }]}>Staff Approval</Text>
-                        <Text style={[styles.timelineStatus, { color: theme.success }]}>✓ Completed</Text>
-                        {selectedRequest.staffRemark ? (
-                          <View style={[styles.remarkBox, { backgroundColor: theme.inputBackground, borderLeftColor: theme.warning }]}>
-                            <Text style={[styles.remarkLabel, { color: theme.textSecondary }]}>Staff Remark:</Text>
-                            <Text style={[styles.remarkText, { color: theme.text }]}>{selectedRequest.staffRemark}</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-
-                    <View style={[styles.timelineLine, { backgroundColor: (selectedRequest.status === 'APPROVED' || selectedRequest.status === 'REJECTED') ? theme.success : theme.border }]} />
-
-                    <View style={styles.timelineItem}>
-                      <View style={[styles.timelineIcon, {
-                        backgroundColor: selectedRequest.status === 'APPROVED' ? theme.success : selectedRequest.status === 'REJECTED' ? theme.error : theme.inputBackground,
-                        borderWidth: (selectedRequest.status === 'PENDING_HOD' || selectedRequest.status === 'PENDING_STAFF') ? 2 : 0,
-                        borderColor: theme.border,
-                      }]}>
-                        {selectedRequest.status === 'APPROVED' ? <Ionicons name="checkmark" size={20} color="#FFF" /> :
-                          selectedRequest.status === 'REJECTED' ? <Ionicons name="close" size={20} color="#FFF" /> :
-                          <View style={[styles.timelineDot, { backgroundColor: theme.textTertiary }]} />}
-                      </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={[styles.timelineTitle, { color: theme.text }]}>HOD Approval</Text>
-                        <Text style={[styles.timelineStatus, {
-                          color: selectedRequest.status === 'APPROVED' ? theme.success : selectedRequest.status === 'REJECTED' ? theme.error : theme.textSecondary
-                        }]}>
-                          {selectedRequest.status === 'APPROVED' ? '✓ Completed' : selectedRequest.status === 'REJECTED' ? '✗ Rejected' : 'Pending'}
-                        </Text>
-                        {selectedRequest.hodRemark ? (
-                          <View style={[styles.remarkBox, { backgroundColor: theme.inputBackground, borderLeftColor: theme.warning }]}>
-                            <Text style={[styles.remarkLabel, { color: theme.textSecondary }]}>HOD Remark:</Text>
-                            <Text style={[styles.remarkText, { color: theme.text }]}>{selectedRequest.hodRemark}</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                  </View>
-
-                  {selectedRequest.status === 'APPROVED' && (
-                    <TouchableOpacity
-                      style={[styles.viewQRButton, { backgroundColor: theme.success }]}
-                      onPress={() => { setShowDetailModal(false); handleViewQR(selectedRequest, selectedRequest.passType === 'BULK'); }}
-                    >
-                      <Ionicons name="qr-code" size={20} color="#FFF" />
-                      <Text style={styles.viewQRButtonText}>View QR Code</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <SinglePassDetailsModal
+        visible={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        request={selectedRequest}
+        viewerRole="staff"
+        onViewQR={(req) => handleViewQR(req, false)}
+        timelineSteps={selectedRequest ? (() => {
+          const s = selectedRequest.status;
+          const approved = s === 'APPROVED';
+          const rejected = s === 'REJECTED';
+          return [
+            { label: 'Request Submitted', status: 'done' as const },
+            {
+              label: 'HOD Approval',
+              status: approved ? 'done' as const : rejected ? 'rejected' as const : 'pending' as const,
+              remark: selectedRequest.hodRemark || selectedRequest.rejectionReason,
+            },
+          ];
+        })() : []}
+      />
 
       <GatePassQRModal
         visible={showQRModal}
@@ -338,6 +248,7 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
         onClose={() => setShowBulkModal(false)}
         requestId={selectedBulkId || 0}
         userRole="STAFF"
+        viewerRole="STAFF"
         currentUserId={user.staffCode}
         requesterInfo={{ name: user.name || user.staffName || 'Staff', role: 'Staff', department: user.department || '' }}
       />
@@ -363,8 +274,8 @@ const styles = StyleSheet.create({
   cardNameBlock: { flex: 1 },
   cardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   cardName: { fontSize: 15, fontWeight: '600', flexShrink: 1 },
-  typePillInline: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-  typePillInlineText: { fontSize: 11, fontWeight: '600' },
+  typePillInline: { borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 },
+  typePillInlineText: { fontSize: 9, fontWeight: '600' },
   cardSubtitle: { fontSize: 12, marginTop: 2 },
   cardTimeAgo: { fontSize: 12, flexShrink: 0 },
   infoBox: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10, gap: 5 },

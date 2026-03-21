@@ -10,7 +10,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme, THEME_PRESETS, ThemePresetId } from '../context/ThemeContext';
 
-const ThemePresetSelector: React.FC = () => {
+interface ThemePresetSelectorProps {
+  onScrollLock?: (locked: boolean) => void;
+}
+
+const ThemePresetSelector: React.FC<ThemePresetSelectorProps> = ({ onScrollLock }) => {
   const { theme, isDark, activePreset, transitioning, applyPreset, toggleTheme } = useTheme();
 
   const handlePress = (id: ThemePresetId) => {
@@ -19,14 +23,15 @@ const ThemePresetSelector: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.surface }]}>
-      {/* Header */}
+    // Outer wrapper — no overflow:hidden, no clipping
+    <View style={[styles.wrapper, { backgroundColor: theme.surface }]}>
+
+      {/* Header row */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons name="color-palette-outline" size={18} color={theme.primary} />
           <Text style={[styles.headerTitle, { color: theme.text }]}>App Theme</Text>
         </View>
-        {/* Dark mode toggle */}
         <View style={styles.darkToggle}>
           <Ionicons
             name={isDark ? 'moon' : 'sunny-outline'}
@@ -43,31 +48,37 @@ const ThemePresetSelector: React.FC = () => {
         </View>
       </View>
 
-      {/* Preset grid */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.presetRow}
+      {/* Horizontal scroll — extends edge-to-edge */}
+      <View
+        onTouchStart={() => onScrollLock?.(true)}
+        onTouchEnd={() => onScrollLock?.(false)}
+        onTouchCancel={() => onScrollLock?.(false)}
       >
-        {THEME_PRESETS.map(preset => {
-          const isActive = activePreset === preset.id;
-          const [c1, c2, c3, c4] = preset.preview;
-
-          return (
-            <TouchableOpacity
-              key={preset.id}
-              style={[
-                styles.presetCard,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: isActive ? theme.primary : theme.border,
-                  borderWidth: isActive ? 2 : 1,
-                },
-              ]}
-              onPress={() => handlePress(preset.id)}
-              activeOpacity={0.85}
-            >
-                {/* Color swatches */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.presetRow}
+          nestedScrollEnabled
+          scrollEventThrottle={16}
+          decelerationRate="fast"
+        >
+          {THEME_PRESETS.map(preset => {
+            const isActive = activePreset === preset.id;
+            const [c1, c2, c3, c4] = preset.preview;
+            return (
+              <TouchableOpacity
+                key={preset.id}
+                style={[
+                  styles.presetCard,
+                  {
+                    backgroundColor: theme.cardBackground || theme.surface,
+                    borderColor: isActive ? theme.primary : theme.border,
+                    borderWidth: isActive ? 2 : 1,
+                  },
+                ]}
+                onPress={() => handlePress(preset.id)}
+                activeOpacity={0.85}
+              >
                 <View style={styles.swatchRow}>
                   {[c1, c2, c3].map((color, i) => (
                     <View
@@ -81,34 +92,29 @@ const ThemePresetSelector: React.FC = () => {
                     />
                   ))}
                 </View>
-
-                {/* Preview mini-card */}
                 <View style={[styles.miniCard, { backgroundColor: c4 }]}>
                   <View style={[styles.miniBar, { backgroundColor: c1, width: '70%' }]} />
                   <View style={[styles.miniBar, { backgroundColor: c2, width: '50%', opacity: 0.7 }]} />
                   <View style={[styles.miniDot, { backgroundColor: c1 }]} />
                 </View>
-
-                {/* Label */}
                 <Text style={[styles.presetName, { color: theme.text }]} numberOfLines={1}>
                   {preset.name}
                 </Text>
                 <Text style={[styles.presetDesc, { color: theme.textTertiary }]} numberOfLines={1}>
                   {preset.description}
                 </Text>
-
-                {/* Active checkmark */}
                 {isActive && (
                   <View style={[styles.activeBadge, { backgroundColor: theme.primary }]}>
                     <Ionicons name="checkmark" size={10} color="#FFF" />
                   </View>
                 )}
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
-      {/* Active preset label */}
+      {/* Footer */}
       <View style={[styles.activeRow, { borderTopColor: theme.border }]}>
         <View style={[styles.activeDot, { backgroundColor: theme.primary }]} />
         <Text style={[styles.activeLabel, { color: theme.textSecondary }]}>
@@ -120,15 +126,15 @@ const ThemePresetSelector: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     borderRadius: 20,
-    overflow: 'hidden',
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
+    // NO overflow:hidden — lets ScrollView extend naturally
   },
   header: {
     flexDirection: 'row',
@@ -160,7 +166,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   presetCard: {
-    width: 110,
+    width: 120,
     borderRadius: 16,
     padding: 10,
     position: 'relative',
@@ -177,17 +183,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 8,
   },
-  swatch: {
-    flex: 1,
-  },
-  swatchFirst: {
-    borderTopLeftRadius: 4,
-    borderBottomLeftRadius: 4,
-  },
-  swatchLast: {
-    borderTopRightRadius: 4,
-    borderBottomRightRadius: 4,
-  },
+  swatch: { flex: 1 },
+  swatchFirst: { borderTopLeftRadius: 4, borderBottomLeftRadius: 4 },
+  swatchLast: { borderTopRightRadius: 4, borderBottomRightRadius: 4 },
   miniCard: {
     borderRadius: 8,
     padding: 6,
@@ -196,10 +194,7 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: 'center',
   },
-  miniBar: {
-    height: 5,
-    borderRadius: 3,
-  },
+  miniBar: { height: 5, borderRadius: 3 },
   miniDot: {
     width: 10,
     height: 10,
@@ -207,15 +202,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: 2,
   },
-  presetName: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  presetDesc: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
+  presetName: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
+  presetDesc: { fontSize: 10, fontWeight: '500' },
   activeBadge: {
     position: 'absolute',
     top: 8,
@@ -234,15 +222,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 1,
   },
-  activeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  activeLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
+  activeDot: { width: 8, height: 8, borderRadius: 4 },
+  activeLabel: { fontSize: 12, fontWeight: '600' },
 });
 
 export default ThemePresetSelector;

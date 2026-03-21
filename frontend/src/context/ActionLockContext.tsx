@@ -17,6 +17,10 @@ interface ActionLockContextType {
   unlock: () => void;
   /** Wrap an async action — auto locks before, unlocks after */
   withLock: <T>(fn: () => Promise<T>, message?: string) => Promise<T>;
+  /** Silent swipe-only lock — blocks SwipeBackWrapper without showing overlay */
+  swipeLocked: boolean;
+  lockSwipe: () => void;
+  unlockSwipe: () => void;
 }
 
 const ActionLockContext = createContext<ActionLockContextType | undefined>(undefined);
@@ -24,6 +28,7 @@ const ActionLockContext = createContext<ActionLockContextType | undefined>(undef
 export const ActionLockProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isLocked, setIsLocked] = useState(false);
   const [lockMessage, setLockMessage] = useState('Processing...');
+  const [swipeLocked, setSwipeLocked] = useState(false);
 
   const lock = useCallback((message = 'Processing...') => {
     setLockMessage(message);
@@ -37,6 +42,9 @@ export const ActionLockProvider: React.FC<{ children: ReactNode }> = ({ children
     (global as any).__actionLocked = false;
   }, []);
 
+  const lockSwipe = useCallback(() => setSwipeLocked(true), []);
+  const unlockSwipe = useCallback(() => setSwipeLocked(false), []);
+
   const withLock = useCallback(async <T,>(fn: () => Promise<T>, message = 'Processing...'): Promise<T> => {
     lock(message);
     try {
@@ -47,7 +55,7 @@ export const ActionLockProvider: React.FC<{ children: ReactNode }> = ({ children
   }, [lock, unlock]);
 
   return (
-    <ActionLockContext.Provider value={{ isLocked, lockMessage, lock, unlock, withLock }}>
+    <ActionLockContext.Provider value={{ isLocked, lockMessage, lock, unlock, withLock, swipeLocked, lockSwipe, unlockSwipe }}>
       {children}
       {/* Full-screen overlay — rendered at top level so it covers everything */}
       <Modal

@@ -23,7 +23,7 @@ class ApiService {
   isBackendAvailable = true; // assume available; Render is always the target
 
   constructor() {
-    this.baseURL = API_CONFIG.PRODUCTION_URL;
+    this.baseURL = API_CONFIG.BASE_URL;
     console.log('🚀 ApiService ready →', this.baseURL);
 
     // Clear any stale local-IP cache from old builds
@@ -137,6 +137,16 @@ class ApiService {
   }
 
   // ── Auth endpoints ────────────────────────────────────────────────────────
+
+  // Detect actual role from backend (handles HOD/HR/STAFF who all have same ID pattern)
+  async detectRole(staffCode: string): Promise<UserRole> {
+    try {
+      const data = await this.makeRequest(`${this.baseURL}/auth/detect-role/${encodeURIComponent(staffCode)}`, { method: 'GET' });
+      if (data.success && data.role) return data.role as UserRole;
+    } catch (_) {}
+    return 'STAFF'; // safe fallback
+  }
+
   async sendStudentOTP(regNo: string): Promise<OTPResponse> {
     try { return await this.makeRequest(`${this.baseURL}/auth/student/send-otp`, { method: 'POST', body: JSON.stringify({ regNo }) }); }
     catch (e: any) { return { success: false, message: e.message || 'Failed to send OTP' }; }
@@ -287,8 +297,9 @@ class ApiService {
   }
 
   async getHRPendingRequests(hrCode: string): Promise<ApiResponse<GatePassRequest[]>> {
+    // endpoint: GET /api/hr/gate-pass/pending?hrCode=...
     try {
-      const data = await this.makeRequest(`${this.baseURL}/gate-pass/hr/${hrCode}/pending`, { method: 'GET' });
+      const data = await this.makeRequest(`${this.baseURL}/hr/gate-pass/pending?hrCode=${encodeURIComponent(hrCode)}`, { method: 'GET' });
       return { success: data.success || true, message: data.message || 'OK', data: data.requests || [] };
     } catch (e: any) { return { success: false, message: e.message || 'Failed', data: [] }; }
   }
@@ -300,6 +311,33 @@ class ApiService {
 
   async rejectGatePassByHR(hrCode: string, requestId: number, reason: string): Promise<ApiResponse> {
     try { return await this.makeRequest(`${this.baseURL}/gate-pass/hr/${hrCode}/reject/${requestId}`, { method: 'POST', body: JSON.stringify({ reason }) }); }
+    catch (e: any) { return { success: false, message: e.message || 'Failed to reject' }; }
+  }
+
+  // HR — HOD bulk pass approval
+  async getHRPendingBulkPasses(): Promise<any> {
+    try { return await this.makeRequest(`${this.baseURL}/hr/bulk-pass/pending`, { method: 'GET' }); }
+    catch (e: any) { return { success: false, message: e.message || 'Failed to fetch bulk passes', requests: [] }; }
+  }
+
+  async approveHODBulkPass(requestId: number, hrCode: string): Promise<ApiResponse> {
+    try { return await this.makeRequest(`${this.baseURL}/hr/bulk-pass/${requestId}/approve`, { method: 'POST', body: JSON.stringify({ hrCode }) }); }
+    catch (e: any) { return { success: false, message: e.message || 'Failed to approve' }; }
+  }
+
+  async rejectHODBulkPass(requestId: number, hrCode: string, reason: string): Promise<ApiResponse> {
+    try { return await this.makeRequest(`${this.baseURL}/hr/bulk-pass/${requestId}/reject`, { method: 'POST', body: JSON.stringify({ hrCode, reason }) }); }
+    catch (e: any) { return { success: false, message: e.message || 'Failed to reject' }; }
+  }
+
+  // HR — single gate pass approval (HOD requests)
+  async approveRequestAsHR(requestId: number, hrCode: string): Promise<ApiResponse> {
+    try { return await this.makeRequest(`${this.baseURL}/hr/gate-pass/${requestId}/approve`, { method: 'POST', body: JSON.stringify({ hrCode }) }); }
+    catch (e: any) { return { success: false, message: e.message || 'Failed to approve' }; }
+  }
+
+  async rejectRequestAsHR(requestId: number, hrCode: string, reason: string): Promise<ApiResponse> {
+    try { return await this.makeRequest(`${this.baseURL}/hr/gate-pass/${requestId}/reject`, { method: 'POST', body: JSON.stringify({ hrCode, reason }) }); }
     catch (e: any) { return { success: false, message: e.message || 'Failed to reject' }; }
   }
 
@@ -349,7 +387,7 @@ class ApiService {
 
   // ── Bulk Gate Pass ────────────────────────────────────────────────────────
   async submitBulkGatePass(data: any): Promise<ApiResponse> {
-    try { return await this.makeRequest(`${this.baseURL}/bulk-gate-pass/submit`, { method: 'POST', body: JSON.stringify(data) }); }
+    try { return await this.makeRequest(`${this.baseURL}/hod/bulk-pass/create`, { method: 'POST', body: JSON.stringify(data) }); }
     catch (e: any) { return { success: false, message: e.message || 'Failed' }; }
   }
 
@@ -360,10 +398,27 @@ class ApiService {
     } catch { return []; }
   }
 
+  async getHODDepartmentStudents(hodCode: string): Promise<{ success: boolean; students?: any[]; message?: string }> {
+    try {
+      const data = await this.makeRequest(`${this.baseURL}/hod/${hodCode}/department/students`, { method: 'GET' });
+      return { success: data.success !== false, students: data.students || [] };
+    } catch (e: any) { return { success: false, students: [], message: e.message || 'Failed to load students' }; }
+  }
+
+  async getHODDepartmentStaff(hodCode: string): Promise<{ success: boolean; staff?: any[]; message?: string }> {
+    try {
+      const data = await this.makeRequest(`${this.baseURL}/hod/${hodCode}/department/staff`, { method: 'GET' });
+      return { success: data.success !== false, staff: data.staff || [] };
+    } catch (e: any) { return { success: false, staff: [], message: e.message || 'Failed to load staff' }; }
+  }
+
   async getStudentsByStaffDepartment(staffCode: string): Promise<{ success: boolean; students?: any[]; message?: string }> {
     try {
       const data = await this.makeRequest(`${this.baseURL}/bulk-pass/students/${staffCode}`, { method: 'GET' });
-      return { success: data.success !== false, students: data.students || data.data || data || [] };
+      const raw = data.students || data.data || data || [];
+      // Backend returns `studentName`, frontend expects `fullName` — normalize here
+      const students = raw.map((s: any) => ({ ...s, fullName: s.fullName || s.studentName || s.name || '' }));
+      return { success: data.success !== false, students };
     } catch (e: any) { return { success: false, students: [], message: e.message || 'Failed to fetch students' }; }
   }
 
@@ -433,8 +488,37 @@ class ApiService {
   }
 
   async getBulkGatePassDetails(requestId: number): Promise<any> {
-    try { return await this.makeRequest(`${this.baseURL}/bulk-pass/${requestId}`, { method: 'GET' }); }
+    try { return await this.makeRequest(`${this.baseURL}/bulk-pass/details/${requestId}`, { method: 'GET' }); }
     catch (e: any) { return { success: false, message: e.message || 'Failed to fetch bulk gate pass details' }; }
+  }
+
+  async getHODBulkGatePassDetails(requestId: number): Promise<any> {
+    try { return await this.makeRequest(`${this.baseURL}/hod/bulk-pass/details/${requestId}`, { method: 'GET' }); }
+    catch (e: any) { return { success: false, message: e.message || 'Failed to fetch HOD bulk gate pass details' }; }
+  }
+
+  async submitHODGatePassRequest(hodCode: string, purpose: string, reason: string, attachmentUri?: string): Promise<{ success: boolean; message?: string; requestId?: number }> {
+    try {
+      const data = await this.makeRequest(`${this.baseURL}/hod/gate-pass/submit`, { method: 'POST', body: JSON.stringify({ hodCode, purpose, reason, attachmentUri }) });
+      return { success: data.status === 'SUCCESS' || data.success !== false, message: data.message, requestId: data.requestId };
+    } catch (e: any) { return { success: false, message: e.message || 'Failed to submit gate pass request' }; }
+  }
+
+  async getHODMyGatePassRequests(hodCode: string): Promise<{ success: boolean; requests: any[]; message?: string }> {
+    try {
+      const data = await this.makeRequest(`${this.baseURL}/hod/gate-pass/my-requests?hodCode=${encodeURIComponent(hodCode)}`, { method: 'GET' });
+      // Backend returns { status: 'SUCCESS', requests: [...] }
+      const ok = data.status === 'SUCCESS' || data.success !== false;
+      return { success: ok, requests: data.requests || [] };
+    } catch (e: any) { return { success: false, requests: [], message: e.message }; }
+  }
+
+  async getHODGatePassQRCode(requestId: number, hodCode: string): Promise<{ success: boolean; qrCode?: string; manualCode?: string; message?: string }> {
+    try {
+      const data = await this.makeRequest(`${this.baseURL}/hod/gate-pass/${requestId}/qr-code?hodCode=${encodeURIComponent(hodCode)}`, { method: 'GET' });
+      const ok = data.status === 'SUCCESS' || data.success !== false;
+      return { success: ok, qrCode: data.qrCode, manualCode: data.manualCode, message: data.message };
+    } catch (e: any) { return { success: false, message: e.message }; }
   }
 }
 

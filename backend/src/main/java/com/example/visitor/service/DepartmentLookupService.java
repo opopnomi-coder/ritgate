@@ -58,36 +58,63 @@ public class DepartmentLookupService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String findHODForDepartment(String department) {
         try {
-            // Step 1: get HOD name from students table
+            // Step 1: get HOD name from students table (hod column)
+            // Values like "KANAGAVALLI N.", "UMA S./ASSO P", "DR.N.VITHYALAKSHMI N"
             List<String> hodNames = studentRepository.findHodNamesByDepartment(department);
+            log.info("HOD lookup for dept '{}' — raw hod values: {}", department, hodNames);
+
             if (!hodNames.isEmpty()) {
-                String hodName = hodNames.get(0);
-                if (hodName != null && !hodName.isBlank()) {
-                    // Step 2: find that staff member by name
-                    Optional<Staff> hodStaff = staffRepository.findByStaffName(hodName.trim());
-                    if (hodStaff.isPresent()) {
-                        log.info("Found HOD '{}' (code: {}) for department {}", hodName, hodStaff.get().getStaffCode(), department);
-                        return hodStaff.get().getStaffCode();
+                String rawHod = hodNames.get(0);
+                if (rawHod != null && !rawHod.isBlank()) {
+                    // Clean: take only the part before '/' (e.g. "UMA S./ASSO P" → "UMA S.")
+                    String hodName = rawHod.split("/")[0].trim();
+                    // Remove common prefixes like "DR.", "Dr."
+                    hodName = hodName.replaceAll("(?i)^dr\\.?\\s*", "").trim();
+                    log.info("Cleaned HOD name: '{}' for dept '{}'", hodName, department);
+
+                    // Step 2a: exact match
+                    Optional<Staff> exact = staffRepository.findByStaffName(hodName);
+                    if (exact.isPresent()) {
+                        log.info("HOD exact match: '{}' → {}", hodName, exact.get().getStaffCode());
+                        return exact.get().getStaffCode();
                     }
-                    log.warn("HOD name '{}' found in students table but not matched in staff table for dept {}", hodName, department);
+
+                    // Step 2b: case-insensitive contains
+                    List<Staff> fuzzy = staffRepository.findByStaffNameContainingIgnoreCase(hodName);
+                    if (!fuzzy.isEmpty()) {
+                        log.info("HOD fuzzy match: '{}' → {}", hodName, fuzzy.get(0).getStaffCode());
+                        return fuzzy.get(0).getStaffCode();
+                    }
+
+                    // Step 2c: try each significant word (skip initials < 3 chars)
+                    for (String part : hodName.split("\\s+")) {
+                        if (part.length() < 3) continue;
+                        List<Staff> partMatch = staffRepository.findByStaffNameContainingIgnoreCase(part);
+                        if (!partMatch.isEmpty()) {
+                            log.info("HOD partial word match '{}' → {}", part, partMatch.get(0).getStaffCode());
+                            return partMatch.get(0).getStaffCode();
+                        }
+                    }
+
+                    log.warn("HOD '{}' (raw: '{}') not matched in staff table for dept '{}'", hodName, rawHod, department);
                 }
             }
         } catch (Exception e) {
-            log.warn("HOD lookup via students table failed for dept {}: {}", department, e.getMessage());
+            log.warn("HOD lookup via students table failed for dept '{}': {}", department, e.getMessage());
         }
 
-        // Step 3: fallback — find staff in department whose role contains "HOD"
+        // Step 3: fallback — role contains "HOD"
         try {
             List<Staff> staffList = staffRepository.findByDepartment(department);
             for (Staff s : staffList) {
                 if (s.getRole() != null && s.getRole().toUpperCase().contains("HOD")) {
-                    log.info("Found HOD via role fallback: {} for department {}", s.getStaffCode(), department);
+                    log.info("HOD role fallback: {} for dept '{}'", s.getStaffCode(), department);
                     return s.getStaffCode();
                 }
             }
-            log.warn("No HOD found for department: {}", department);
+            log.warn("No HOD found for department: '{}'", department);
         } catch (Exception e) {
-            log.error("HOD role fallback failed for department {}: {}", department, e.getMessage());
+            log.error("HOD role fallback failed for dept '{}': {}", department, e.getMessage());
         }
         return null;
     }

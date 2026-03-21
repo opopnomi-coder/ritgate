@@ -7,15 +7,15 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  Modal,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
 import { HOD } from '../../types';
+import { useTheme } from '../../context/ThemeContext';
 import MyRequestsBulkModal from '../../components/MyRequestsBulkModal';
 import GatePassQRModal from '../../components/GatePassQRModal';
+import SinglePassDetailsModal from '../../components/SinglePassDetailsModal';
 
 interface HODMyRequestsScreenProps {
   user: HOD;
@@ -23,6 +23,7 @@ interface HODMyRequestsScreenProps {
 }
 
 const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack }) => {
+  const { theme } = useTheme();
   const [allRequests, setAllRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -95,10 +96,7 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
   };
 
   const handleViewQR = async (request: any, isBulk: boolean = false) => {
-    if (request.status !== 'APPROVED') {
-      Alert.alert('Not Available', 'QR code is only available for approved requests');
-      return;
-    }
+    if (request.status !== 'APPROVED') return;
 
     setSelectedRequest(request);
     setQrCodeData(null);
@@ -117,7 +115,6 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
         }
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to fetch QR code');
       setShowQRModal(false);
     }
   };
@@ -166,7 +163,7 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
             <View style={styles.cardNameRow}>
               <Text style={styles.cardName} numberOfLines={1}>{name}</Text>
               <View style={styles.typePillInline}>
-                <Text style={styles.typePillInlineText}>{isBulk ? 'Bulk Pass' : 'Single Pass'}</Text>
+                <Text style={styles.typePillInlineText}>{isBulk ? 'Bulk Gatepass' : 'Single Gatepass'}</Text>
               </View>
             </View>
             <Text style={styles.cardSubtitle}>HOD • {user.department || 'Department'}</Text>
@@ -271,148 +268,27 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Detail Modal */}
-      <Modal
+      {/* Detail — full-screen */}
+      <SinglePassDetailsModal
         visible={showDetailModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowDetailModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Request Status</Text>
-              <TouchableOpacity onPress={() => setShowDetailModal(false)}>
-                <Ionicons name="close" size={24} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {selectedRequest && (
-                <>
-                  {/* Request Info Card */}
-                  <View style={styles.requestInfoCard}>
-                    <View style={styles.requestInfoRow}>
-                      <Text style={styles.requestInfoLabel}>REQUEST ID</Text>
-                      <Text style={styles.requestInfoValue}>#{selectedRequest.id}</Text>
-                    </View>
-                    <View style={styles.requestInfoRow}>
-                      <Text style={styles.requestInfoLabel}>TYPE</Text>
-                      <Text style={styles.requestInfoValue}>
-                        {selectedRequest.passType === 'BULK' ? 'Bulk Pass' : 'Single Pass'}
-                      </Text>
-                    </View>
-                    <View style={styles.requestInfoRow}>
-                      <Text style={styles.requestInfoLabel}>DATE</Text>
-                      <Text style={styles.requestInfoValue}>
-                        {new Date(selectedRequest.passType === 'BULK' ? selectedRequest.exitDateTime : selectedRequest.requestDate).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Reason Section */}
-                  <View style={styles.reasonSection}>
-                    <Text style={styles.reasonLabel}>REASON</Text>
-                    <Text style={styles.reasonText}>{selectedRequest.reason || selectedRequest.purpose}</Text>
-                  </View>
-
-                  {/* Timeline */}
-                  <View style={styles.timeline}>
-                    <Text style={styles.timelineHeading}>Timeline</Text>
-                    <View style={styles.timelineBar} />
-
-                    {/* Step 1: Request Submitted */}
-                    <View style={styles.timelineItem}>
-                      <View style={[styles.timelineIcon, styles.timelineIconComplete]}>
-                        <Ionicons name="checkmark" size={20} color="#FFF" />
-                      </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={styles.timelineTitle}>Request Submitted</Text>
-                        <Text style={[styles.timelineStatus, styles.timelineStatusComplete]}>✓ Completed</Text>
-                      </View>
-                    </View>
-
-                    <View style={[styles.timelineLine, styles.timelineLineComplete]} />
-
-                    {/* Step 2: HOD Approval (self — always complete) */}
-                    <View style={styles.timelineItem}>
-                      <View style={[styles.timelineIcon, styles.timelineIconComplete]}>
-                        <Ionicons name="checkmark" size={20} color="#FFF" />
-                      </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={styles.timelineTitle}>HOD Approval</Text>
-                        <Text style={[styles.timelineStatus, styles.timelineStatusComplete]}>✓ Completed</Text>
-                      </View>
-                    </View>
-
-                    <View style={[
-                      styles.timelineLine,
-                      (selectedRequest.status === 'APPROVED' || selectedRequest.status === 'REJECTED') && styles.timelineLineComplete
-                    ]} />
-
-                    {/* Step 3: HR Approval */}
-                    <View style={styles.timelineItem}>
-                      <View style={[
-                        styles.timelineIcon,
-                        selectedRequest.status === 'APPROVED' && styles.timelineIconComplete,
-                        selectedRequest.status === 'REJECTED' && styles.timelineIconRejected,
-                        (selectedRequest.status !== 'APPROVED' && selectedRequest.status !== 'REJECTED') && styles.timelineIconPending,
-                      ]}>
-                        {selectedRequest.status === 'APPROVED' ? (
-                          <Ionicons name="checkmark" size={20} color="#FFF" />
-                        ) : selectedRequest.status === 'REJECTED' ? (
-                          <Ionicons name="close" size={20} color="#FFF" />
-                        ) : (
-                          <View style={styles.timelineDot} />
-                        )}
-                      </View>
-                      <View style={styles.timelineContent}>
-                        <Text style={styles.timelineTitle}>HR Approval</Text>
-                        <Text style={[
-                          styles.timelineStatus,
-                          selectedRequest.status === 'APPROVED' && styles.timelineStatusComplete,
-                          selectedRequest.status === 'REJECTED' && styles.timelineStatusRejected,
-                        ]}>
-                          {selectedRequest.status === 'APPROVED'
-                            ? '✓ Completed'
-                            : selectedRequest.status === 'REJECTED'
-                            ? '✗ Rejected'
-                            : 'Pending'}
-                        </Text>
-                        {selectedRequest.hrRemark ? (
-                          <View style={styles.remarkBox}>
-                            <Text style={styles.remarkLabel}>HR Remark:</Text>
-                            <Text style={styles.remarkText}>{selectedRequest.hrRemark}</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* View QR Button */}
-                  {selectedRequest.status === 'APPROVED' && (
-                    <TouchableOpacity
-                      style={styles.viewQRButton}
-                      onPress={() => {
-                        setShowDetailModal(false);
-                        handleViewQR(selectedRequest, selectedRequest.passType === 'BULK');
-                      }}
-                    >
-                      <Ionicons name="qr-code" size={20} color="#FFF" />
-                      <Text style={styles.viewQRButtonText}>View QR Code</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowDetailModal(false)}
+        request={selectedRequest}
+        viewerRole="hod"
+        onViewQR={(req) => handleViewQR(req, false)}
+        timelineSteps={selectedRequest ? (() => {
+          const s = selectedRequest.status;
+          const approved = s === 'APPROVED';
+          const rejected = s === 'REJECTED';
+          return [
+            { label: 'Request Submitted', status: 'done' as const },
+            {
+              label: 'HR Approval',
+              status: approved ? 'done' as const : rejected ? 'rejected' as const : 'pending' as const,
+              remark: selectedRequest.hrRemark || selectedRequest.rejectionReason,
+            },
+          ];
+        })() : []}
+      />
 
       {/* QR Code Modal */}
       <GatePassQRModal
@@ -431,6 +307,7 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
         onClose={() => setShowBulkModal(false)}
         requestId={selectedBulkId || 0}
         userRole="HOD"
+        viewerRole="HOD"
         currentUserId={user.hodCode}
         requesterInfo={{
           name: user.hodName || user.name || 'HOD',
@@ -602,11 +479,11 @@ const styles = StyleSheet.create({
   typePillInline: {
     backgroundColor: '#F3F4F6',
     borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
   },
   typePillInlineText: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '600',
     color: '#1F2937',
   },

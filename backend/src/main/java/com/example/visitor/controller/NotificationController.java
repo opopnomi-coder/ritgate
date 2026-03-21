@@ -1,7 +1,9 @@
 package com.example.visitor.controller;
 
 import com.example.visitor.entity.Notification;
+import com.example.visitor.entity.UserPushToken;
 import com.example.visitor.repository.NotificationRepository;
+import com.example.visitor.repository.UserPushTokenRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +19,9 @@ public class NotificationController {
     
     @Autowired
     private NotificationRepository notificationRepository;
+
+    @Autowired
+    private UserPushTokenRepository pushTokenRepository;
     
     // Get notifications for student
     @GetMapping("/student/{regNo}")
@@ -204,6 +209,47 @@ public class NotificationController {
             errorResponse.put("success", false);
             errorResponse.put("message", "Error marking all notifications as read: " + e.getMessage());
             return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+
+    // Register push token
+    @PostMapping("/push-token")
+    public ResponseEntity<?> registerPushToken(@RequestBody Map<String, String> body) {
+        try {
+            String userId = body.get("userId");
+            String pushToken = body.get("pushToken");
+            String deviceType = body.getOrDefault("deviceType", "ANDROID");
+
+            if (userId == null || pushToken == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "userId and pushToken required"));
+            }
+
+            pushTokenRepository.findByPushToken(pushToken).ifPresentOrElse(
+                existing -> {
+                    existing.setUserId(userId);
+                    existing.setDeviceType(deviceType);
+                    pushTokenRepository.save(existing);
+                },
+                () -> pushTokenRepository.save(new UserPushToken(userId, pushToken, deviceType))
+            );
+
+            return ResponseEntity.ok(Map.of("success", true, "message", "Push token registered"));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    // Unregister push token (on logout)
+    @DeleteMapping("/push-token")
+    public ResponseEntity<?> unregisterPushToken(@RequestBody Map<String, String> body) {
+        try {
+            String pushToken = body.get("pushToken");
+            if (pushToken != null) {
+                pushTokenRepository.deleteByPushToken(pushToken);
+            }
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
         }
     }
 

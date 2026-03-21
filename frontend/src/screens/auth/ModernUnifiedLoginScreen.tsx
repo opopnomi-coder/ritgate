@@ -13,6 +13,8 @@ import {
   StatusBar,
   Image,
   Modal,
+  NativeSyntheticEvent,
+  TextInputKeyPressEventData,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,10 +37,13 @@ interface ModernUnifiedLoginScreenProps {
 const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onLoginSuccess, onBack }) => {
   const [userId, setUserId] = useState('');
   const [otp, setOtp] = useState('');
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const otpRefs = useRef<(TextInput | null)[]>([]);
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [showOTPSuccessModal, setShowOTPSuccessModal] = useState(false);
   const [detectedRole, setDetectedRole] = useState<UserRole | null>(null);
+  const resolvedRoleRef = useRef<UserRole | null>(null); // always holds the backend-confirmed role
   const [maskedEmail, setMaskedEmail] = useState('');
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [otpTimer, setOtpTimer] = useState(0);
@@ -69,6 +74,8 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
     } else {
       setDetectedRole(null);
     }
+    // Reset resolved role whenever ID changes
+    resolvedRoleRef.current = null;
   }, [userId]);
 
   useEffect(() => {
@@ -94,19 +101,59 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
     }
   }, [showOTPSuccessModal]);
 
+  const handleOtpChange = (text: string, index: number) => {
+    // Allow only digits
+    const digit = text.replace(/[^0-9]/g, '').slice(-1);
+    const newDigits = [...otpDigits];
+    newDigits[index] = digit;
+    setOtpDigits(newDigits);
+    setOtp(newDigits.join(''));
+    // Auto-advance
+    if (digit && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>, index: number) => {
+    if (e.nativeEvent.key === 'Backspace') {
+      if (otpDigits[index] === '' && index > 0) {
+        const newDigits = [...otpDigits];
+        newDigits[index - 1] = '';
+        setOtpDigits(newDigits);
+        setOtp(newDigits.join(''));
+        otpRefs.current[index - 1]?.focus();
+      } else {
+        const newDigits = [...otpDigits];
+        newDigits[index] = '';
+        setOtpDigits(newDigits);
+        setOtp(newDigits.join(''));
+      }
+    }
+  };
+
+  const resetOtp = () => {
+    setOtpDigits(['', '', '', '', '', '']);
+    setOtp('');
+  };
+
   const handleSendOTP = async () => {
     if (!userId.trim()) {
       showError(new AppError('validation', 'Please enter your ID', 'Missing ID'));
       return;
     }
-    const role = detectUserRole(userId);
     setLoading(true);
     setLoadingMessage('Connecting...');
     try {
+      // For staff-pattern IDs, ask backend for the real role (HOD/HR/STAFF all look the same)
+      let role = detectUserRole(userId);
+      if (role === 'STAFF') {
+        role = await apiService.detectRole(userId.trim());
+      }
       const response = await apiService.sendOTP(userId, role);
       if (response.success) {
         setMaskedEmail(response.maskedEmail || response.email || 'm***@institution.edu');
         setDetectedRole(role);
+        resolvedRoleRef.current = role; // persist for verifyOTP
         setOtpTimer(120);
         setShowOTPSuccessModal(true);
       } else {
@@ -124,11 +171,17 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
       showError(new AppError('validation', 'Please enter a valid 6-digit OTP', 'Invalid OTP'));
       return;
     }
+    // Use ref (set during sendOTP) — state update may not have flushed yet
+    const role = resolvedRoleRef.current || detectedRole;
+    if (!role) {
+      showError(new AppError('validation', 'Role not detected. Please go back and try again.', 'Error'));
+      return;
+    }
     setLoading(true);
     try {
-      const response = await apiService.verifyOTP(userId, otp, detectedRole!);
+      const response = await apiService.verifyOTP(userId, otp, role);
       if (response.success && response.user) {
-        onLoginSuccess(response.user, detectedRole!);
+        onLoginSuccess(response.user, role);
       } else {
         showError(new AppError('auth', response.message || 'Invalid OTP', 'Verification Failed'), handleVerifyOTP);
       }
@@ -144,7 +197,7 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
       showError(new AppError('general', `You can resend OTP in ${otpTimer} seconds`, 'Please Wait'));
       return;
     }
-    setOtp('');
+    resetOtp();
     handleSendOTP();
   };
 
@@ -195,16 +248,27 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
                 <View style={{ width: '100%', alignItems: 'center' }}>
                     <View style={styles.inputWrap}>
                       <Text style={styles.label}>VERIFICATION CODE</Text>
-                      <TextInput
-                        style={[styles.input, { textAlign: 'center', letterSpacing: 8, fontWeight: '800' }]}
-                        value={otp}
-                        onChangeText={setOtp}
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        placeholder="000000"
-                        placeholderTextColor="#94A3B8"
-                        autoFocus
-                      />
+                      <View style={styles.otpBoxRow}>
+                        {otpDigits.map((digit, i) => (
+                          <TextInput
+                            key={i}
+                            ref={ref => { otpRefs.current[i] = ref; }}
+                            style={[
+                              styles.otpBox,
+                              digit ? styles.otpBoxFilled : null,
+                              i === otpDigits.findIndex(d => d === '') ? styles.otpBoxActive : null,
+                            ]}
+                            value={digit}
+                            onChangeText={text => handleOtpChange(text, i)}
+                            onKeyPress={e => handleOtpKeyPress(e, i)}
+                            keyboardType="number-pad"
+                            maxLength={1}
+                            selectTextOnFocus
+                            caretHidden
+                            autoFocus={i === 0}
+                          />
+                        ))}
+                      </View>
                       <Text style={styles.otpSubText}>Sent to {maskedEmail}</Text>
                     </View>
 
@@ -281,7 +345,28 @@ const styles = StyleSheet.create({
   emailHighlight: { color: '#1E293B', fontWeight: '800' },
   verifyBtn: { width: '100%', height: 58, backgroundColor: '#1E293B', borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   verifyTxt: { color: '#FFF', fontSize: 16, fontWeight: '800' },
-  otpSubText: { fontSize: 12, color: '#94A3B8', marginTop: 6, marginBottom: 0 },
+  otpSubText: { fontSize: 12, color: '#94A3B8', marginTop: 10, textAlign: 'center' },
+  otpBoxRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 4 },
+  otpBox: {
+    flex: 1,
+    height: 68,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1E293B',
+    textAlign: 'center',
+  },
+  otpBoxFilled: {
+    borderColor: '#1E293B',
+    backgroundColor: '#F1F5F9',
+  },
+  otpBoxActive: {
+    borderColor: '#3B82F6',
+    borderWidth: 2,
+  },
   otpActions: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 32, paddingHorizontal: 4 },
   timerTxt: { fontSize: 13, color: '#64748B', fontWeight: '600' },
   resendLink: { fontSize: 13, color: '#1E293B', fontWeight: '700', textDecorationLine: 'underline' },

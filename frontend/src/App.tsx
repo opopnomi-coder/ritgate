@@ -27,9 +27,9 @@ import HomeScreen from './screens/HomeScreen';
 import LoadingScreen from './screens/LoadingScreen';
 import ModernUnifiedLoginScreen from './screens/auth/ModernUnifiedLoginScreen';
 import StudentDashboardContainer from './screens/student/StudentDashboardContainer';
-import NewStaffDashboard from './screens/staff/NewStaffDashboard';
-import NewHODDashboard from './screens/hod/NewHODDashboard';
-import NewHRDashboard from './screens/hr/NewHRDashboard';
+import StaffDashboardContainer from './screens/staff/StaffDashboardContainer';
+import HODDashboardContainer from './screens/hod/HODDashboardContainer';
+import HRDashboardContainer from './screens/hr/HRDashboardContainer';
 import HRApprovalScreen from './screens/hr/HRApprovalScreen';
 import NewSecurityDashboard from './screens/security/NewSecurityDashboard';
 import ModernQRScannerScreen from './screens/security/ModernQRScannerScreen';
@@ -53,6 +53,7 @@ import MyRequestsScreen from './screens/staff/MyRequestsScreen';
 import NotificationsScreen from './screens/shared/NotificationsScreen';
 import SwipeBackWrapper from './components/SwipeBackWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
+import { initPushNotifications, unregisterPushToken, setupNotificationTapHandler, handleInitialNotification } from './services/pushNotification.service';
 
 // Inner component that can access ThemeContext for transition animation
 const ThemedApp: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -71,11 +72,11 @@ const AppNavigator: React.FC<{
   isLoading: boolean;
   onBack: () => void;
 }> = ({ children, isRootScreen, isLoading, onBack }) => {
-  const { isLocked } = useActionLock();
+  const { isLocked, swipeLocked } = useActionLock();
   return (
     <SwipeBackWrapper
       enabled={!isRootScreen && !isLoading}
-      locked={isLocked}
+      locked={isLocked || swipeLocked}
       onBack={onBack}
     >
       {children}
@@ -96,6 +97,36 @@ const App: React.FC = () => {
 
   // Double-back-to-exit tracking
   const lastBackPress = useRef<number>(0);
+
+  // ── Notification tap → screen navigation ────────────────────────────────
+  // Maps actionRoute strings (set by backend) to ScreenName values
+  const handleNotificationRoute = React.useCallback((route: string) => {
+    if (!route) return;
+    const r = route.toLowerCase();
+    if (r.includes('my-requests') || r.includes('my_requests')) {
+      if (userType === 'STUDENT') setCurrentScreen('REQUESTS');
+      else if (userType === 'STAFF') setCurrentScreen('MY_REQUESTS');
+      else if (userType === 'HOD') setCurrentScreen('HOD_MY_REQUESTS');
+    } else if (r.includes('pending-approvals') || r.includes('pending_approvals')) {
+      if (userType === 'STAFF') setCurrentScreen('REQUESTS');
+      else if (userType === 'HOD') setCurrentScreen('HOD_DASHBOARD');
+      else if (userType === 'HR') setCurrentScreen('HR_DASHBOARD');
+    } else if (r.includes('hod/pending') || r.includes('hr/pending')) {
+      if (userType === 'HOD') setCurrentScreen('HOD_DASHBOARD');
+      else if (userType === 'HR') setCurrentScreen('HR_DASHBOARD');
+    }
+  }, [userType]);
+
+  // Set up notification tap listener (foreground + background tap)
+  React.useEffect(() => {
+    const cleanup = setupNotificationTapHandler(handleNotificationRoute);
+    return cleanup;
+  }, [handleNotificationRoute]);
+
+  // Handle app opened from a notification while it was KILLED
+  React.useEffect(() => {
+    handleInitialNotification(handleNotificationRoute);
+  }, []); // run once on mount
 
   React.useEffect(() => {
     console.log('🚀 App mounted - starting initialization');
@@ -132,6 +163,7 @@ const App: React.FC = () => {
         setUserType('STUDENT');
         setCurrentScreen('DASHBOARD');
         setIsLoading(false);
+        initPushNotifications(savedStudent.regNo, 'student');
         return;
       }
 
@@ -143,6 +175,7 @@ const App: React.FC = () => {
         setUserType('STAFF');
         setCurrentScreen('STAFF_DASHBOARD');
         setIsLoading(false);
+        initPushNotifications(savedStaff.staffCode, 'staff');
         return;
       }
 
@@ -154,6 +187,7 @@ const App: React.FC = () => {
         setUserType('HOD');
         setCurrentScreen('HOD_DASHBOARD');
         setIsLoading(false);
+        initPushNotifications(savedHOD.hodCode, 'hod');
         return;
       }
 
@@ -165,6 +199,7 @@ const App: React.FC = () => {
         setUserType('HR');
         setCurrentScreen('HR_DASHBOARD');
         setIsLoading(false);
+        initPushNotifications(savedHR.hrCode, 'hr');
         return;
       }
 
@@ -214,6 +249,7 @@ const App: React.FC = () => {
     setStudent(studentData);
     setUserType('STUDENT');
     setCurrentScreen('DASHBOARD');
+    initPushNotifications(studentData.regNo, 'student');
   };
 
   const handleStaffLogin = async (staffData: Staff) => {
@@ -227,6 +263,7 @@ const App: React.FC = () => {
     setStaff(staffData);
     setUserType('STAFF');
     setCurrentScreen('STAFF_DASHBOARD');
+    initPushNotifications(staffData.staffCode, 'staff');
   };
 
   const handleHODLogin = async (hodData: HOD) => {
@@ -240,6 +277,7 @@ const App: React.FC = () => {
     setHod(hodData);
     setUserType('HOD');
     setCurrentScreen('HOD_DASHBOARD');
+    initPushNotifications(hodData.hodCode, 'hod');
   };
 
   const handleHRLogin = async (hrData: HR) => {
@@ -253,6 +291,7 @@ const App: React.FC = () => {
     setHr(hrData);
     setUserType('HR');
     setCurrentScreen('HR_DASHBOARD');
+    initPushNotifications(hrData.hrCode, 'hr');
   };
 
   const handleSecurityLogin = async (securityData: SecurityPersonnel) => {
@@ -271,6 +310,8 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     try {
       console.log('🚪 Logging out user...');
+      // Unregister push token before clearing session
+      await unregisterPushToken();
       // Clear all user sessions
       await offlineStorage.clearCurrentStudent();
       await offlineStorage.clearCurrentStaff();
@@ -476,19 +517,10 @@ const App: React.FC = () => {
         switch (currentScreen) {
           case 'STAFF_DASHBOARD':
             return (
-              <NewStaffDashboard
+              <StaffDashboardContainer
                 staff={staff}
                 onLogout={handleLogout}
                 onNavigate={navigateToScreen}
-              />
-            );
-          case 'PROFILE':
-            return (
-              <ProfileScreen
-                user={staff}
-                userType="STAFF"
-                onBack={navigateBack}
-                onLogout={handleLogout}
               />
             );
           case 'HISTORY':
@@ -545,7 +577,7 @@ const App: React.FC = () => {
             );
           default:
             return (
-              <NewStaffDashboard
+              <StaffDashboardContainer
                 staff={staff}
                 onLogout={handleLogout}
                 onNavigate={navigateToScreen}
@@ -576,7 +608,7 @@ const App: React.FC = () => {
         switch (currentScreen) {
           case 'HOD_DASHBOARD':
             return (
-              <NewHODDashboard
+              <HODDashboardContainer
                 hod={hod}
                 onLogout={handleLogout}
                 onNavigate={navigateToScreen}
@@ -604,28 +636,19 @@ const App: React.FC = () => {
               />
             );
           case 'PROFILE':
+            // Handled internally by HODDashboardContainer
             return (
-              <ProfileScreen
-                user={hod}
-                userType="HOD"
-                onBack={navigateBack}
+              <HODDashboardContainer
+                hod={hod}
                 onLogout={handleLogout}
+                onNavigate={navigateToScreen}
               />
             );
           case 'HISTORY':
             return (
-              <EntryExitHistoryScreen 
-                user={hod as any} 
-                onBack={() => setCurrentScreen('DASHBOARD')}
-              />
-            );
-          case 'REQUESTS':
-            // Redirect to dashboard - requests are shown there
-            return (
-              <NewHODDashboard
-                hod={hod}
-                onLogout={handleLogout}
-                onNavigate={navigateToScreen}
+              <EntryExitHistoryScreen
+                user={hod as any}
+                onBack={() => setCurrentScreen('HOD_DASHBOARD')}
               />
             );
           case 'NOTIFICATIONS':
@@ -637,7 +660,7 @@ const App: React.FC = () => {
             );
           default:
             return (
-              <NewHODDashboard
+              <HODDashboardContainer
                 hod={hod}
                 onLogout={handleLogout}
                 onNavigate={navigateToScreen}
@@ -651,7 +674,7 @@ const App: React.FC = () => {
         switch (currentScreen) {
           case 'HR_DASHBOARD':
             return (
-              <NewHRDashboard
+              <HRDashboardContainer
                 hr={hr}
                 onLogout={handleLogout}
                 onNavigate={(screen: ScreenName) => setCurrentScreen(screen)}
@@ -665,15 +688,6 @@ const App: React.FC = () => {
                 onBack={() => setCurrentScreen('HR_DASHBOARD')}
               />
             );
-          case 'PROFILE':
-            return (
-              <ProfileScreen
-                user={hr}
-                userType="HR"
-                onBack={navigateBack}
-                onLogout={handleLogout}
-              />
-            );
           case 'NOTIFICATIONS':
             return (
               <NotificationsScreen
@@ -683,7 +697,7 @@ const App: React.FC = () => {
             );
           default:
             return (
-              <NewHRDashboard
+              <HRDashboardContainer
                 hr={hr}
                 onLogout={handleLogout}
                 onNavigate={(screen: ScreenName) => setCurrentScreen(screen)}

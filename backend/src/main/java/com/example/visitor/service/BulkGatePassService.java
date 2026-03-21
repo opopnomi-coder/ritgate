@@ -22,6 +22,7 @@ public class BulkGatePassService {
     private final QRTableRepository qrTableRepository;
     private final GatePassScanLogRepository scanLogRepository;
     private final NotificationService notificationService;
+    private final DepartmentLookupService departmentLookupService;
     
     // Get students by staff department
     public Map<String, Object> getStudentsByStaffDepartment(String staffCode) {
@@ -38,9 +39,26 @@ public class BulkGatePassService {
             
             Staff staff = staffOpt.get();
             String department = staff.getDepartment();
+            String staffName = staff.getStaffName();
             
-            // Get students from same department
-            List<Student> students = studentRepository.findByDepartment(department);
+            log.info("Finding students for staff: '{}' (code: {}) dept: '{}'", staffName, staffCode, department);
+            
+            // Strategy 1: exact match on class_incharge
+            List<Student> students = studentRepository.findByClassIncharge(staffName);
+            log.info("Strategy 1 (exact class_incharge='{}') → {} students", staffName, students.size());
+            
+            // Strategy 2: case-insensitive contains match within department
+            if (students.isEmpty()) {
+                students = studentRepository.findByClassInchargeContainingAndDepartment(staffName, department);
+                log.info("Strategy 2 (contains '{}' in dept '{}') → {} students", staffName, department, students.size());
+            }
+            
+            // Strategy 3: full department fallback
+            if (students.isEmpty()) {
+                log.warn("No students matched class_incharge for staff '{}', falling back to full department", staffName);
+                students = studentRepository.findByDepartment(department);
+                log.info("Strategy 3 (full dept fallback) → {} students", students.size());
+            }
             
             // Convert to simple map
             List<Map<String, String>> studentList = new ArrayList<>();
@@ -49,6 +67,9 @@ public class BulkGatePassService {
                 studentInfo.put("regNo", s.getRegNo());
                 studentInfo.put("studentName", s.getFullName());
                 studentInfo.put("department", s.getDepartment());
+                studentInfo.put("section", s.getSection() != null ? s.getSection() : "");
+                studentInfo.put("year", s.getYear() != null ? s.getYear() : "");
+                studentInfo.put("classIncharge", s.getClassIncharge() != null ? s.getClassIncharge() : "");
                 studentInfo.put("email", s.getEmail());
                 studentList.add(studentInfo);
             }
@@ -56,6 +77,7 @@ public class BulkGatePassService {
             response.put("success", true);
             response.put("students", studentList);
             response.put("department", department);
+            response.put("staffName", staffName);
             response.put("count", studentList.size());
             
         } catch (Exception e) {
@@ -148,8 +170,7 @@ public class BulkGatePassService {
             }
             
             // Find HOD for the department
-            List<HOD> hodList = hodRepository.findByDepartment(department);
-            String hodCode = (!hodList.isEmpty() && hodList.get(0).getIsActive()) ? hodList.get(0).getHodCode() : null;
+            String hodCode = departmentLookupService.findHODForDepartment(department);
             
             // Determine bulk type
             String bulkType = includeStaffFlag ? "BULK_INCLUDE_STAFF" : "BULK_EXCLUDE_STAFF";

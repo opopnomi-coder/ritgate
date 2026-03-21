@@ -28,7 +28,7 @@ interface GatePassQRModalProps {
 }
 
 const isQRString = (val: string) =>
-  val.startsWith('GP|') || val.startsWith('ST|') || val.startsWith('SF|') || val.startsWith('VG|');
+  val.startsWith('GP|') || val.startsWith('ST|') || val.startsWith('SF|') || val.startsWith('VG|') || val.startsWith('HD|');
 
 const GatePassQRModal: React.FC<GatePassQRModalProps> = ({
   visible,

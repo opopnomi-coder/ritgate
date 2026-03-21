@@ -67,8 +67,10 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
     try {
       const hrCode = hr.hrCode;
       
-      // HR only sees HOD bulk pass requests
+      // Fetch HOD bulk pass requests pending HR approval
       const bulkResult = await apiService.getHRPendingBulkPasses();
+      // Fetch HOD single gate pass requests pending HR approval
+      const singleResult = await apiService.getHRPendingRequests(hrCode);
       
       let allRequests: any[] = [];
       
@@ -77,6 +79,15 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
           ...req,
           requestType: 'BULK',
         }));
+      }
+
+      if (singleResult.success && singleResult.data) {
+        const singleRequests = singleResult.data.map((req: any) => ({
+          ...req,
+          requestType: 'SINGLE',
+          hrApproval: req.hrApproval || 'PENDING',
+        }));
+        allRequests = [...allRequests, ...singleRequests];
       }
       
       setRequests(allRequests);
@@ -255,27 +266,31 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
               onPress={() => {
                 setSelectedRequest(request);
                 setSelectedBulkId(request.id);
-                setSelectedBulkRequester({ name: request.requestedByStaffName || request.hodCode || 'HOD', role: request.userType || 'HOD', department: request.department || 'Department' });
-                setShowBulkModal(true);
+                if (request.requestType === 'BULK') {
+                  setSelectedBulkRequester({ name: request.requestedByStaffName || request.hodCode || 'HOD', role: request.userType || 'HOD', department: request.department || 'Department' });
+                  setShowBulkModal(true);
+                } else {
+                  setShowDetailModal(true);
+                }
               }}
             >
               <View style={styles.cardTopRow}>
                 <View style={[styles.avatarContainer, { backgroundColor: theme.surfaceHighlight }]}>
                   <Text style={[styles.cardAvatarText, { color: theme.textSecondary }]}>
-                    {getInitials(request.requestType === 'BULK' ? (request.hodCode || 'HOD') : (request.studentName || 'ST'))}
+                    {getInitials(request.requestType === 'BULK' ? (request.hodCode || 'HOD') : (request.requestedByStaffName || request.studentName || 'ST'))}
                   </Text>
                 </View>
                 <View style={styles.headerMainInfo}>
                   <View style={styles.nameRow}>
                     <Text style={[styles.requestStudentName, { color: theme.text }]} numberOfLines={1}>
-                      {request.requestType === 'SINGLE' ? (request.studentName || request.regNo || `Request #${request.id}`) : `${request.requestedByStaffName || request.hodCode || 'Staff'}`}
+                      {request.requestType === 'SINGLE' ? (request.requestedByStaffName || request.studentName || request.regNo || `Request #${request.id}`) : `${request.requestedByStaffName || request.hodCode || 'Staff'}`}
                     </Text>
                     <Text style={[styles.passTypeLabel, { color: theme.textSecondary }]}>
-                      {request.requestType === 'BULK' ? '(Bulk Pass)' : '(Gatepass)'}
+                      {request.requestType === 'BULK' ? '(Bulk Gatepass)' : '(Single Gatepass)'}
                     </Text>
                   </View>
                   <Text style={[styles.studentIdSub, { color: theme.textSecondary }]}>
-                    {request.requestType === 'SINGLE' ? `${request.regNo || 'N/A'} • ${request.department || 'Department'}` : `${request.userType || 'HOD'} • ${request.department || 'N/A'}`}
+                    {request.requestType === 'SINGLE' ? `${request.requestedByStaffCode || request.regNo || 'N/A'} • ${request.department || 'Department'}` : `${request.userType || 'HOD'} • ${request.department || 'N/A'}`}
                   </Text>
                 </View>
                 <View style={styles.timeAgoContainer}>
@@ -331,7 +346,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
                 {request.requestType === 'BULK' && (
                   <View style={[styles.viewBadge, { backgroundColor: theme.surfaceHighlight }]}>
                     <Ionicons name="people" size={14} color={theme.textSecondary} />
-                    <Text style={[styles.viewBadgeText, { color: theme.textSecondary }]}>Bulk Pass</Text>
+                    <Text style={[styles.viewBadgeText, { color: theme.textSecondary }]}>Bulk Gatepass</Text>
                   </View>
                 )}
               </View>
@@ -447,7 +462,7 @@ const styles = StyleSheet.create({
   headerMainInfo: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
   requestStudentName: { fontSize: 17, fontWeight: '700', flexShrink: 1 },
-  passTypeLabel: { fontSize: 14, fontWeight: '500' },
+  passTypeLabel: { fontSize: 9, fontWeight: '500' },
   studentIdSub: { fontSize: 13, marginTop: 2 },
   timeAgoContainer: { alignSelf: 'flex-start', paddingTop: 4 },
   timeAgoText: { fontSize: 12 },
@@ -457,8 +472,8 @@ const styles = StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   statusText: { fontSize: 12, fontWeight: '700' },
-  viewBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, gap: 6 },
-  viewBadgeText: { fontSize: 13, fontWeight: '600' },
+  viewBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 4 },
+  viewBadgeText: { fontSize: 9, fontWeight: '600' },
   bottomNav: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', paddingVertical: 12, paddingHorizontal: 8, borderTopWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 8 },
   navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, position: 'relative' },
   navLabel: { fontSize: 11, fontWeight: '600', marginTop: 4 },

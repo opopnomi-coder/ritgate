@@ -197,7 +197,7 @@ const PendingApprovalsScreen: React.FC<PendingApprovalsScreenProps> = ({ user, n
                       {request.passType === 'BULK' ? (request.requestedByStaffName || 'Bulk Request') : request.regNo}
                     </Text>
                     <Text style={[styles.passTypeLabel, { color: theme.textSecondary }]}>
-                      {request.passType === 'BULK' ? '(Bulk Pass)' : '(Gatepass)'}
+                      {request.passType === 'BULK' ? '(Bulk Gatepass)' : '(Single Gatepass)'}
                     </Text>
                   </View>
                   <Text style={[styles.studentIdSub, { color: theme.textSecondary }]}>
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   headerMainInfo: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   requestStudentName: { fontSize: 17, fontWeight: '700' },
-  passTypeLabel: { fontSize: 14, fontWeight: '500' },
+  passTypeLabel: { fontSize: 9, fontWeight: '500' },
   studentIdSub: { fontSize: 13, marginTop: 2 },
   timeAgoContainer: { alignSelf: 'flex-start', paddingTop: 4 },
   timeAgoText: { fontSize: 12 },
@@ -324,8 +324,8 @@ const styles = StyleSheet.create({
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   statusText: { fontSize: 12, fontWeight: '700' },
-  viewBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, gap: 6 },
-  viewBadgeText: { fontSize: 13, fontWeight: '600' },
+  viewBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 4 },
+  viewBadgeText: { fontSize: 9, fontWeight: '600' },
   footerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   actionIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
 });
