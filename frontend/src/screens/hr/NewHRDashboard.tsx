@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TextInput,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,6 +49,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalMessage, setModalMessage] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -146,10 +148,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
     if (!targetId) return;
     const req = selectedRequest;
 
-    // Close modals immediately
-    setShowDetailModal(false);
-    setShowBulkModal(false);
-    setSelectedRequest(null);
+    setProcessing(true);
 
     try {
       if (req && req.requestType === 'SINGLE') {
@@ -157,11 +156,19 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
       } else {
         await apiService.approveHODBulkPass(targetId, hr.hrCode);
       }
+      setShowDetailModal(false);
+      setShowBulkModal(false);
+      setSelectedRequest(null);
+      setModalTitle('Approved');
+      setModalMessage('Request approved successfully.');
+      setShowSuccessModal(true);
       loadRequests();
     } catch (error: any) {
       setModalTitle('Error');
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -171,10 +178,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
     const req = selectedRequest;
     const targetRemark = remark || 'Rejected by HR';
 
-    // Close modals immediately
-    setShowDetailModal(false);
-    setShowBulkModal(false);
-    setSelectedRequest(null);
+    setProcessing(true);
 
     try {
       if (req && req.requestType === 'SINGLE') {
@@ -182,11 +186,19 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
       } else {
         await apiService.rejectHODBulkPass(targetId, hr.hrCode, targetRemark);
       }
+      setShowDetailModal(false);
+      setShowBulkModal(false);
+      setSelectedRequest(null);
+      setModalTitle('Rejected');
+      setModalMessage('Request has been rejected.');
+      setShowSuccessModal(true);
       loadRequests();
     } catch (error: any) {
       setModalTitle('Error');
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -388,6 +400,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
         onReject={(id, remark) => handleReject(id, remark)}
         showActions={selectedRequest && (selectedRequest.hrApproval === 'PENDING_HR' || selectedRequest.hrApproval === 'PENDING' || !selectedRequest.hrApproval)}
         currentUserId={hr.hrCode}
+        processing={processing}
       />
 
       {/* Request Detail Modal */}
@@ -400,6 +413,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
         onReject={(id, remark) => handleReject(id, remark)}
         showActions={selectedRequest && (selectedRequest.hrApproval === 'PENDING_HR' || selectedRequest.hrApproval === 'PENDING' || !selectedRequest.hrApproval)}
         viewerRole="hr"
+        processing={processing}
       />
 
       {/* Success Modal */}
@@ -430,6 +444,16 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
         icon="log-out-outline"
         confirmColor={theme.error}
       />
+
+      {/* Full-screen processing overlay */}
+      {processing && (
+        <View style={styles.processingOverlay} pointerEvents="box-only">
+          <View style={styles.processingBox}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.processingText, { color: theme.text }]}>Processing...</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -461,7 +485,7 @@ const styles = StyleSheet.create({
   avatarContainer: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   cardAvatarText: { fontSize: 16, fontWeight: '700' },
   headerMainInfo: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 8, flexShrink: 1 },
   requestStudentName: { fontSize: 17, fontWeight: '700', flexShrink: 1 },
   passTypeLabel: { fontSize: 9, fontWeight: '500' },
   studentIdSub: { fontSize: 13, marginTop: 2 },
@@ -499,6 +523,9 @@ const styles = StyleSheet.create({
   remarkBox: { borderRadius: 8, padding: 12, marginBottom: 8, borderLeftWidth: 3 },
   remarkLabel: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
   remarkValue: { fontSize: 14, fontWeight: '500' },
+  processingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  processingBox: { backgroundColor: '#fff', borderRadius: 16, padding: 28, alignItems: 'center', gap: 14, minWidth: 160, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
+  processingText: { fontSize: 15, fontWeight: '600' },
 });
 
 export default NewHRDashboard;

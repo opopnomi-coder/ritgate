@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, Image,
   TextInput, StatusBar, Platform, Dimensions, ActivityIndicator, ScrollView,
+  KeyboardAvoidingView, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -87,7 +88,7 @@ const SinglePassDetailsModal: React.FC<SinglePassDetailsModalProps> = ({
           </View>
         </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           {/* Profile Row */}
           <View style={[styles.profileRow, { backgroundColor: theme.surface }]}>
             <View style={[styles.avatar, { backgroundColor: statusColor }]}>
@@ -218,32 +219,34 @@ const SinglePassDetailsModal: React.FC<SinglePassDetailsModalProps> = ({
 
         {/* Footer */}
         {showActions ? (
-          <View style={[styles.footer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-            <TextInput
-              style={[styles.remarkInput, { backgroundColor: theme.inputBackground, borderColor: theme.border, color: theme.text }]}
-              placeholder="Add review notes (optional)..."
-              placeholderTextColor={theme.textTertiary}
-              value={remark}
-              onChangeText={setRemark}
-              multiline
-              numberOfLines={2}
-              editable={!processing}
-            />
-            <View style={styles.actionRow}>
-              {onReject && (
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.error }, processing && { opacity: 0.5 }]} onPress={() => onReject(request.id, remark)} disabled={processing}>
-                  <Ionicons name="close-circle" size={20} color="#FFF" />
-                  <Text style={styles.actionBtnText}>Reject</Text>
-                </TouchableOpacity>
-              )}
-              {onApprove && (
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.success }, processing && { opacity: 0.5 }]} onPress={() => onApprove(request.id, remark)} disabled={processing}>
-                  {processing ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
-                  <Text style={styles.actionBtnText}>{processing ? 'Processing...' : 'Approve'}</Text>
-                </TouchableOpacity>
-              )}
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.footer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+              <TextInput
+                style={[styles.remarkInput, { backgroundColor: theme.inputBackground, borderColor: theme.border, color: theme.text }]}
+                placeholder="Add review notes (optional)..."
+                placeholderTextColor={theme.textTertiary}
+                value={remark}
+                onChangeText={setRemark}
+                multiline
+                numberOfLines={2}
+                editable={!processing}
+              />
+              <View style={styles.actionRow}>
+                {onReject && (
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.error }, processing && { opacity: 0.5 }]} onPress={() => { Keyboard.dismiss(); onReject(request.id, remark); }} disabled={processing}>
+                    <Ionicons name="close-circle" size={20} color="#FFF" />
+                    <Text style={styles.actionBtnText}>Reject</Text>
+                  </TouchableOpacity>
+                )}
+                {onApprove && (
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.success }, processing && { opacity: 0.5 }]} onPress={() => { Keyboard.dismiss(); onApprove(request.id, remark); }} disabled={processing}>
+                    {processing ? <ActivityIndicator size="small" color="#FFF" /> : <Ionicons name="checkmark-circle" size={20} color="#FFF" />}
+                    <Text style={styles.actionBtnText}>{processing ? 'Processing...' : 'Approve'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         ) : (
           <View style={[styles.footer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
             {isApproved && onViewQR ? (
@@ -275,58 +278,58 @@ const SinglePassDetailsModal: React.FC<SinglePassDetailsModalProps> = ({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, gap: 10 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 17, fontWeight: '800' },
-  statusPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  statusPillText: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, gap: 10 },
+  backBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '800' },
+  statusPill: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+  statusPillText: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   scrollView: { flex: 1 },
   scrollContent: { paddingBottom: 8 },
-  profileRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 12, borderRadius: 14, padding: 12, gap: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4 },
-  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  avatarText: { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
+  profileRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 14, borderRadius: 16, padding: 14, gap: 14, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4 },
+  avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  avatarText: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
   profileInfo: { flex: 1 },
-  visitorBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start', marginBottom: 2 },
-  visitorBadgeText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  profileName: { fontSize: 16, fontWeight: '700' },
-  profileSub: { fontSize: 12, marginTop: 2 },
-  infoGrid: { flexDirection: 'row', marginHorizontal: 16, marginTop: 10, borderRadius: 14, overflow: 'hidden', elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
-  infoCell: { flex: 1, padding: 12 },
-  infoDivider: { width: 1, marginVertical: 8 },
-  infoLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 4 },
-  infoValue: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
-  block: { marginHorizontal: 16, marginTop: 10, borderRadius: 14, padding: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
-  blockLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 0.8, marginBottom: 8 },
-  reasonText: { fontSize: 14, lineHeight: 20, fontWeight: '500' },
-  previewBox: { width: SCREEN_W * 0.38, height: 80, borderRadius: 10, overflow: 'hidden', backgroundColor: '#000' },
+  visitorBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, alignSelf: 'flex-start', marginBottom: 3 },
+  visitorBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  profileName: { fontSize: 18, fontWeight: '700' },
+  profileSub: { fontSize: 13, marginTop: 3 },
+  infoGrid: { flexDirection: 'row', marginHorizontal: 16, marginTop: 12, borderRadius: 16, overflow: 'hidden', elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
+  infoCell: { flex: 1, padding: 14 },
+  infoDivider: { width: 1, marginVertical: 10 },
+  infoLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 5 },
+  infoValue: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
+  block: { marginHorizontal: 16, marginTop: 12, borderRadius: 16, padding: 14, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
+  blockLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, marginBottom: 10 },
+  reasonText: { fontSize: 15, lineHeight: 22, fontWeight: '500' },
+  previewBox: { width: SCREEN_W * 0.42, height: 90, borderRadius: 10, overflow: 'hidden', backgroundColor: '#000' },
   previewImage: { width: '100%', height: '100%' },
   previewOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)', paddingVertical: 4, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 },
   previewOverlayText: { color: '#FFF', fontSize: 11, fontWeight: '600' },
-  noPreview: { width: SCREEN_W * 0.38, height: 80, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  noPreview: { width: SCREEN_W * 0.42, height: 90, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4 },
   noPreviewText: { fontSize: 11, fontWeight: '500' },
-  remarkChip: { borderRadius: 10, padding: 10, borderLeftWidth: 3 },
-  remarkChipRole: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 3, textTransform: 'uppercase' },
-  remarkChipText: { fontSize: 13, lineHeight: 18, fontStyle: 'italic' },
+  remarkChip: { borderRadius: 10, padding: 12, borderLeftWidth: 3 },
+  remarkChipRole: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4, textTransform: 'uppercase' },
+  remarkChipText: { fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
   // Timeline
   tlItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  tlDot: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  tlDot: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
   tlDotInner: { width: 10, height: 10, borderRadius: 5 },
   tlBody: { flex: 1, paddingTop: 4, paddingBottom: 4 },
-  tlTitle: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
-  tlStatus: { fontSize: 12 },
-  tlConnector: { width: 2, height: 20, marginLeft: 15, marginVertical: 2 },
+  tlTitle: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  tlStatus: { fontSize: 13 },
+  tlConnector: { width: 2, height: 22, marginLeft: 16, marginVertical: 2 },
   tlRemark: { marginTop: 6, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, borderLeftWidth: 3 },
   tlRemarkLabel: { fontSize: 10, fontWeight: '700', marginBottom: 2 },
-  tlRemarkText: { fontSize: 12, lineHeight: 16 },
+  tlRemarkText: { fontSize: 13, lineHeight: 18 },
   // Footer
-  footer: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: Platform.OS === 'ios' ? 8 : 14, borderTopWidth: 1 },
-  remarkInput: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, borderWidth: 1, textAlignVertical: 'top', marginBottom: 10, maxHeight: 68 },
-  actionRow: { flexDirection: 'row', gap: 10 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14, gap: 8 },
-  actionBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  qrBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14, gap: 8 },
-  closeBtn: { paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
-  closeBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  footer: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: Platform.OS === 'ios' ? 10 : 16, borderTopWidth: 1 },
+  remarkInput: { borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, borderWidth: 1, textAlignVertical: 'top', marginBottom: 12, minHeight: 72, maxHeight: 100 },
+  actionRow: { flexDirection: 'row', gap: 12 },
+  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 16, gap: 8 },
+  actionBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  qrBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, borderRadius: 16, gap: 8 },
+  closeBtn: { paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
+  closeBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   fullscreenOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' },
   fullscreenCloseBtn: { position: 'absolute', top: 52, right: 20, width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', zIndex: 10 },
   fullscreenImage: { width: '95%', height: '80%', borderRadius: 12 },

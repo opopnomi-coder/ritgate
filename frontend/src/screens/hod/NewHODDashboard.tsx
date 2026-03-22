@@ -155,14 +155,13 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
     if (!targetId) return;
 
     setProcessing(true);
-    // Close modals immediately
-    setShowDetailModal(false);
-    setShowBulkModal(false);
-    setSelectedRequest(null);
-    setHodRemark('');
 
     try {
       await apiService.approveGatePassByHOD(hod.hodCode, targetId, targetRemark);
+      setShowDetailModal(false);
+      setShowBulkModal(false);
+      setSelectedRequest(null);
+      setHodRemark('');
       setModalTitle('Approved');
       setModalMessage('Request approved successfully.');
       setShowSuccessModal(true);
@@ -188,14 +187,13 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
     }
 
     setProcessing(true);
-    // Close modals immediately
-    setShowDetailModal(false);
-    setShowBulkModal(false);
-    setSelectedRequest(null);
-    setHodRemark('');
 
     try {
       await apiService.rejectGatePassByHOD(hod.hodCode, targetId, targetRemark.trim());
+      setShowDetailModal(false);
+      setShowBulkModal(false);
+      setSelectedRequest(null);
+      setHodRemark('');
       setModalTitle('Rejected');
       setModalMessage('Request has been rejected.');
       setShowSuccessModal(true);
@@ -499,6 +497,16 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
         icon="log-out-outline"
         confirmColor={theme.error}
       />
+
+      {/* Full-screen processing overlay */}
+      {processing && (
+        <View style={styles.processingOverlay} pointerEvents="box-only">
+          <View style={styles.processingBox}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.processingText, { color: theme.text }]}>Processing...</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -531,8 +539,8 @@ const styles = StyleSheet.create({
   avatarContainer: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   requestAvatarText: { fontSize: 16, fontWeight: '700' },
   headerMainInfo: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  requestStudentName: { fontSize: 15, fontWeight: '700' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  requestStudentName: { fontSize: 15, fontWeight: '700', flexShrink: 1 },
   passTypePill: { borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1 },
   passTypePillText: { fontSize: 9, fontWeight: '600' },
   studentIdSub: { fontSize: 13, marginTop: 2 },
@@ -573,6 +581,9 @@ const styles = StyleSheet.create({
   attachmentPreviewClose: { position: 'absolute', top: 52, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, padding: 10 },
   attachmentPreviewImage: { width: '95%', height: '78%', borderRadius: 12 },
   vContainer: { flex: 1 },
+  processingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  processingBox: { backgroundColor: '#fff', borderRadius: 16, padding: 28, alignItems: 'center', gap: 14, minWidth: 160, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
+  processingText: { fontSize: 15, fontWeight: '600' },
 });
 
 export default NewHODDashboard;

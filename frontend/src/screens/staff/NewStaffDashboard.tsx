@@ -10,6 +10,7 @@ import {
   StatusBar,
   Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -56,6 +57,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
   const [modalMessage, setModalMessage] = useState('');
   const [modalTitle, setModalTitle] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const { unreadCount, loadNotifications } = useNotifications();
   const { profileImage } = useProfile();
 
@@ -204,34 +206,33 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
   const handleApprove = async (id?: number, remark?: string) => {
     if (!selectedRequest) return;
     const req = selectedRequest;
-
-    // Close modal immediately
-    setShowDetailModal(false);
-    setSelectedRequest(null);
-
+    setProcessing(true);
     try {
       if (req.requestType === 'VISITOR') {
         const visitorId = req.originalId || req.id.replace('VISITOR-', '');
-        await apiService.approveVisitorRequest(visitorId);
+        await apiService.approveVisitorRequest(visitorId, staff.staffCode);
       } else {
         await apiService.approveGatePassByStaff(staff.staffCode, req.id, remark || '');
       }
+      setShowDetailModal(false);
+      setSelectedRequest(null);
+      setModalTitle('Approved');
+      setModalMessage('Request approved successfully.');
+      setShowSuccessModal(true);
       loadRequests();
     } catch (error: any) {
       setModalTitle('Error');
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
+    } finally {
+      setProcessing(false);
     }
   };
 
   const handleReject = async (id?: number, remark?: string) => {
     if (!selectedRequest) return;
     const req = selectedRequest;
-
-    // Close modal immediately
-    setShowDetailModal(false);
-    setSelectedRequest(null);
-
+    setProcessing(true);
     try {
       if (req.requestType === 'VISITOR') {
         const visitorId = req.originalId || req.id.replace('VISITOR-', '');
@@ -239,11 +240,18 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
       } else {
         await apiService.rejectGatePassByStaff(staff.staffCode, req.id, remark || 'Rejected by staff');
       }
+      setShowDetailModal(false);
+      setSelectedRequest(null);
+      setModalTitle('Rejected');
+      setModalMessage('Request has been rejected.');
+      setShowSuccessModal(true);
       loadRequests();
     } catch (error: any) {
       setModalTitle('Error');
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -683,6 +691,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
           (selectedRequest?.requestType === 'VISITOR' && (selectedRequest?.staffApproval === 'PENDING' || selectedRequest?.staffApproval === 'PENDING_STAFF'))
         }
         viewerRole="staff"
+        processing={processing}
       />
 
       {/* Success Modal */}
@@ -714,6 +723,16 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
         icon="log-out-outline"
         confirmColor={theme.error}
       />
+
+      {/* Full-screen processing overlay */}
+      {processing && (
+        <View style={styles.processingOverlay} pointerEvents="box-only">
+          <View style={styles.processingBox}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.processingText, { color: theme.text }]}>Processing...</Text>
+          </View>
+        </View>
+      )}
 
     </SafeAreaView>
   );
@@ -878,10 +897,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 1,
   },
   requestStudentName: {
     fontSize: 17,
     fontWeight: '700',
+    flexShrink: 1,
   },
   studentIdSub: {
     fontSize: 13,
@@ -1248,6 +1269,9 @@ const styles = StyleSheet.create({
     height: '78%',
     borderRadius: 12,
   },
+  processingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  processingBox: { backgroundColor: '#fff', borderRadius: 16, padding: 28, alignItems: 'center', gap: 14, minWidth: 160, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
+  processingText: { fontSize: 15, fontWeight: '600' },
 });
 
 export default NewStaffDashboard;

@@ -316,6 +316,16 @@ const PendingApprovalsScreen: React.FC<PendingApprovalsScreenProps> = ({ user, n
 
       <SuccessModal visible={showSuccessModal} title="Done" message={feedbackMessage} onClose={() => setShowSuccessModal(false)} autoClose={true} autoCloseDelay={2000} />
       <ErrorModal visible={showErrorModal} type="api" title="Action Failed" message={feedbackMessage} onClose={() => setShowErrorModal(false)} />
+
+      {/* Full-screen processing overlay — blocks all interaction */}
+      {processingId !== null && (
+        <View style={styles.processingOverlay} pointerEvents="box-only">
+          <View style={styles.processingBox}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.processingText, { color: theme.text }]}>Processing...</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -336,8 +346,8 @@ const styles = StyleSheet.create({
   avatarContainer: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   avatarText: { fontSize: 16, fontWeight: '700' },
   headerMainInfo: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  requestStudentName: { fontSize: 17, fontWeight: '700' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  requestStudentName: { fontSize: 17, fontWeight: '700', flexShrink: 1 },
   passTypeLabel: { fontSize: 9, fontWeight: '500' },
   studentIdSub: { fontSize: 13, marginTop: 2 },
   timeAgoContainer: { alignSelf: 'flex-start', paddingTop: 4 },
@@ -352,6 +362,9 @@ const styles = StyleSheet.create({
   viewBadgeText: { fontSize: 9, fontWeight: '600' },
   footerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   actionIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  processingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', zIndex: 999 },
+  processingBox: { backgroundColor: '#fff', borderRadius: 16, padding: 28, alignItems: 'center', gap: 14, minWidth: 160, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8 },
+  processingText: { fontSize: 15, fontWeight: '600' },
 });
 
 export default PendingApprovalsScreen;
