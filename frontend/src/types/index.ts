@@ -176,12 +176,14 @@ export interface Notification {
 export interface ActivePerson {
   id: number;
   name: string;
-  type: 'STUDENT' | 'FACULTY' | 'VISITOR';
+  type: string;
   purpose: string;
   status: 'PENDING' | 'EXITED';
   inTime: string;
   outTime: string | null;
   qrCode: string;
+  userId?: string;
+  department?: string;
 }
 
 // Vehicle History

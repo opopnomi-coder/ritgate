@@ -9,7 +9,6 @@ import {
   StatusBar,
   Modal,
   Image,
-  Alert,
   TextInput,
   Platform,
 } from 'react-native';
@@ -23,6 +22,8 @@ import { useNotifications } from '../../context/NotificationContext';
 import { useTheme } from '../../context/ThemeContext';
 import NotificationDropdown from '../../components/NotificationDropdown';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import SuccessModal from '../../components/SuccessModal';
+import ErrorModal from '../../components/ErrorModal';
 import { formatTime as fmtTime, getRelativeTimeShort } from '../../utils/dateUtils';
 
 interface NewSecurityDashboardProps {
@@ -66,6 +67,10 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
   const [rejectionReason, setRejectionReason] = useState('');
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   const [stats, setStats] = useState({
     active: 0,
@@ -88,24 +93,37 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
 
   const loadDashboardData = async () => {
     try {
-      const response = await apiService.getActivePersons();
-      if (response.success && response.data) {
-        const validPersons = response.data.filter((person: ActivePerson) => 
+      const personsResponse = await apiService.getActivePersons();
+
+      if (personsResponse.success && personsResponse.data) {
+        const validPersons = personsResponse.data.filter((person: ActivePerson) => 
           person.name && 
           !person.name.startsWith('QR Not Found') && 
           !person.name.includes('Unknown')
         );
         setActivePersons(validPersons);
 
-        // Calculate stats
-        const active = validPersons.filter((p: ActivePerson) => p.status === 'PENDING').length;
-        const exited = validPersons.filter((p: ActivePerson) => p.status === 'EXITED').length;
-        
-        setStats({
-          active,
-          exited,
-          total: validPersons.length,
-        });
+        // Active count comes directly from the active-persons list
+        const activeCount = validPersons.length;
+
+        // For exited + total, fetch scan history and count today's records
+        try {
+          const historyResponse = await apiService.getScanHistory(user.securityId);
+          if (historyResponse.success && historyResponse.data) {
+            const today = new Date().toDateString();
+            const todayRecords = historyResponse.data.filter((r: any) => {
+              const t = r.exitTime || r.entryTime || r.inTime || r.outTime;
+              return t && new Date(t).toDateString() === today;
+            });
+            const exitedCount = todayRecords.filter((r: any) => r.status === 'EXITED' || !!r.exitTime).length;
+            const totalCount = activeCount + exitedCount;
+            setStats({ active: activeCount, exited: exitedCount, total: totalCount });
+          } else {
+            setStats({ active: activeCount, exited: 0, total: activeCount });
+          }
+        } catch {
+          setStats({ active: activeCount, exited: 0, total: activeCount });
+        }
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -150,60 +168,42 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
   };
 
   const handleManualExit = async (person: ActivePerson) => {
-    Alert.alert(
-      'Manual Exit',
-      `Mark ${person.name} as exited?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Exit',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const response = await apiService.manualExit(person.id);
-              if (response.success) {
-                Alert.alert('Success', `${person.name} has been marked as exited`);
-                loadDashboardData();
-              } else {
-                Alert.alert('Error', response.message || 'Failed to mark exit');
-              }
-            } catch (error) {
-              console.error('Manual exit error:', error);
-              Alert.alert('Error', 'Failed to process manual exit');
-            }
-          }
-        }
-      ]
-    );
+    try {
+      const response = await apiService.manualExit(person.name, user.securityId);
+      if (response.success) {
+        setSuccessMessage(`${person.name} has been marked as exited`);
+        setShowSuccessModal(true);
+        setShowDetailModal(false);
+        loadDashboardData();
+      } else {
+        setErrorMessage(response.message || 'Failed to mark exit');
+        setShowErrorModal(true);
+      }
+    } catch (error) {
+      console.error('Manual exit error:', error);
+      setErrorMessage('Failed to process manual exit');
+      setShowErrorModal(true);
+    }
   };
 
   const handleApproveVisitor = async (visitor: EscalatedVisitor) => {
-    Alert.alert(
-      'Approve Visitor',
-      `Approve ${visitor.name} to visit ${visitor.personToMeet}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Approve',
-          onPress: async () => {
-            try {
-              const securityId = user.securityId || user.id?.toString() || 'SEC001';
-              const response = await apiService.approveEscalatedVisitor(visitor.id, securityId);
-              if (response.success) {
-                Alert.alert('Success', 'Visitor approved successfully');
-                setShowVisitorModal(false);
-                loadEscalatedVisitors();
-              } else {
-                Alert.alert('Error', response.message || 'Failed to approve visitor');
-              }
-            } catch (error) {
-              console.error('Approve visitor error:', error);
-              Alert.alert('Error', 'Failed to approve visitor');
-            }
-          }
-        }
-      ]
-    );
+    try {
+      const securityId = user.securityId || user.id?.toString() || 'SEC001';
+      const response = await apiService.approveEscalatedVisitor(visitor.id, securityId);
+      if (response.success) {
+        setSuccessMessage('Visitor approved successfully');
+        setShowSuccessModal(true);
+        setShowVisitorModal(false);
+        loadEscalatedVisitors();
+      } else {
+        setErrorMessage(response.message || 'Failed to approve visitor');
+        setShowErrorModal(true);
+      }
+    } catch (error) {
+      console.error('Approve visitor error:', error);
+      setErrorMessage('Failed to approve visitor');
+      setShowErrorModal(true);
+    }
   };
 
   const handleRejectVisitor = async (visitor: EscalatedVisitor) => {
@@ -222,17 +222,20 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
         rejectionReason || 'Rejected by security'
       );
       if (response.success) {
-        Alert.alert('Success', 'Visitor rejected');
+        setSuccessMessage('Visitor rejected');
+        setShowSuccessModal(true);
         setShowRejectModal(false);
         setShowVisitorModal(false);
         setRejectionReason('');
         loadEscalatedVisitors();
       } else {
-        Alert.alert('Error', response.message || 'Failed to reject visitor');
+        setErrorMessage(response.message || 'Failed to reject visitor');
+        setShowErrorModal(true);
       }
     } catch (error) {
       console.error('Reject visitor error:', error);
-      Alert.alert('Error', 'Failed to reject visitor');
+      setErrorMessage('Failed to reject visitor');
+      setShowErrorModal(true);
     }
   };
 
@@ -641,6 +644,17 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
         onCancel={() => setShowLogoutModal(false)}
         icon="log-out-outline"
         confirmColor={theme.error}
+      />
+      <SuccessModal
+        visible={showSuccessModal}
+        message={successMessage}
+        onClose={() => setShowSuccessModal(false)}
+      />
+      <ErrorModal
+        visible={showErrorModal}
+        type="general"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
       />
     </SafeAreaView>
   );

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   RefreshControl,
   TextInput,
@@ -141,7 +140,11 @@ const PendingApprovalsScreen: React.FC<PendingApprovalsScreenProps> = ({ user, n
   const confirmReject = () => {
     const requestId = selectedRequest?.id || rejectingRequestId;
     const reason = rejectReason || staffRemark;
-    if (!reason.trim()) { Alert.alert('Error', 'Please provide a reason for rejection'); return; }
+    if (!reason.trim()) {
+      setFeedbackMessage('Please provide a reason for rejection');
+      setShowErrorModal(true);
+      return;
+    }
     if (requestId === null) return;
     setRejectModalVisible(false);
     setVerificationModalVisible(false);

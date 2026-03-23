@@ -542,6 +542,13 @@ class ApiService {
     } catch (e: any) { return { success: false, data: [], message: e.message }; }
   }
 
+  async getSecurityStats(): Promise<{ success: boolean; data?: { active: number; exited: number; total: number }; message?: string }> {
+    try {
+      const data = await this.makeRequest(`${this.baseURL}/security/stats`, { method: 'GET' });
+      return { success: true, data };
+    } catch (e: any) { return { success: false, message: e.message }; }
+  }
+
   // ── Security scan entry/exit ──────────────────────────────────────────────
   // Both entry and exit use the same /security/scan endpoint
   async scanQREntry(qrData: string, securityId: string): Promise<ApiResponse> {
@@ -559,8 +566,16 @@ class ApiService {
     catch (e: any) { return { success: false, message: e.message || 'Failed to scan late entry' }; }
   }
 
-  async manualExit(visitorId: string | number): Promise<ApiResponse> {
-    try { return await this.makeRequest(`${this.baseURL}/security/manual-exit`, { method: 'POST', body: JSON.stringify({ visitorId }) }); }
+  async manualExit(personName: string, scannedBy?: string): Promise<ApiResponse> {
+    try {
+      const data = await this.makeRequest(`${this.baseURL}/security/manual-exit`, {
+        method: 'POST',
+        body: JSON.stringify({ personName, scannedBy }),
+      });
+      // Backend returns { status: "SUCCESS", message: "..." } — normalize to { success: true }
+      const ok = data.success === true || data.status === 'SUCCESS';
+      return { ...data, success: ok };
+    }
     catch (e: any) { return { success: false, message: e.message || 'Failed to record manual exit' }; }
   }
 

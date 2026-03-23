@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   StatusBar,
-  Alert,
   Animated,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +17,7 @@ import { useTheme } from '../../context/ThemeContext';
 import QRCodeModal from '../../components/QRCodeModal';
 import RequestTimeline from '../../components/RequestTimeline';
 import Modal from 'react-native-modal';
+import ErrorModal from '../../components/ErrorModal';
 
 const TypedModal = Modal as any;
 
@@ -45,6 +45,10 @@ const RequestsScreen: React.FC<RequestsScreenProps> = ({ user, onBack, onNavigat
   // Tracking Modal State
   const [showTrackingModal, setShowTrackingModal] = useState(false);
   const [trackingRequest, setTrackingRequest] = useState<GatePassRequest | null>(null);
+
+  // Error Modal State
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -143,38 +147,30 @@ const RequestsScreen: React.FC<RequestsScreenProps> = ({ user, onBack, onNavigat
       console.log('📡 API Response:', response);
       
       if (response.success && response.qrCode) {
-        // Check if it's a QR string (for BULK or SINGLE passes) or base64 image
-        // QR string formats:
-        // - Bulk: GP|staffCode|studentIds||SEG:signature
-        // - Single: SF/ST/VG|staffCode/studentId/null|token
         if (response.qrCode.startsWith('GP|') || 
             response.qrCode.startsWith('SF|') || 
             response.qrCode.startsWith('ST|') || 
             response.qrCode.startsWith('VG|')) {
-          // It's a QR string, use it directly
-          console.log('✅ Got QR string from API:', response.qrCode);
           setQrCodeData(response.qrCode);
         } else {
-          // It's a base64 image
           const qrCodeWithPrefix = response.qrCode.startsWith('data:image')
             ? response.qrCode
             : `data:image/png;base64,${response.qrCode}`;
-          console.log('✅ Got base64 image from API');
           setQrCodeData(qrCodeWithPrefix);
         }
         
-        // Extract manual code from API response
         const manualCodeValue = (response as any).manualCode || null;
-        console.log('✅ Manual code from API:', manualCodeValue);
         setManualCode(manualCodeValue);
       } else {
         console.error('❌ Failed to get QR code:', response.message);
-        Alert.alert('Error', response.message || 'Could not fetch QR code');
+        setErrorMessage(response.message || 'Could not fetch QR code');
+        setShowErrorModal(true);
         setShowQRModal(false);
       }
     } catch (error) {
       console.error('❌ Error fetching QR code:', error);
-      Alert.alert('Error', 'Failed to load QR code');
+      setErrorMessage('Failed to load QR code');
+      setShowErrorModal(true);
       setShowQRModal(false);
     }
   };
@@ -379,6 +375,13 @@ const RequestsScreen: React.FC<RequestsScreenProps> = ({ user, onBack, onNavigat
           qrCodeData={qrCodeData}
           manualCode={manualCode}
           request={selectedRequest}
+        />
+
+        <ErrorModal
+          visible={showErrorModal}
+          type="general"
+          message={errorMessage}
+          onClose={() => setShowErrorModal(false)}
         />
 
         {/* Tracking Modal */}

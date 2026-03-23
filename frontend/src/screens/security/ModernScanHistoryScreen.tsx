@@ -60,7 +60,7 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'SCANS' | 'VEHICLES'>('SCANS');
-  const [activeFilter, setActiveFilter] = useState<'ALL' | 'ENTRY' | 'EXIT' | 'TODAY'>('ALL');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'ENTRY' | 'EXIT'>('ALL');
   const [selectedScan, setSelectedScan] = useState<ScanRecord | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<any | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -145,11 +145,6 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
       matchesFilter = scan.status === 'ENTERED' || (!scan.outTime && !!scan.inTime);
     } else if (activeFilter === 'EXIT') {
       matchesFilter = scan.status === 'EXITED' || !!scan.outTime;
-    } else if (activeFilter === 'TODAY') {
-      const today = new Date().toDateString();
-      const timeToCheck = scan.inTime || scan.outTime;
-      const scanDate = timeToCheck ? new Date(timeToCheck).toDateString() : '';
-      matchesFilter = today === scanDate;
     }
 
     return matchesSearch && matchesFilter;
@@ -225,6 +220,12 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
       </View>
 
       {/* Search Bar */}
+      <ScrollView
+        style={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={20} color="#9CA3AF" />
         <TextInput
@@ -263,14 +264,6 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
               Exit
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterTab, activeFilter === 'TODAY' && styles.filterTabActive]}
-            onPress={() => setActiveFilter('TODAY')}
-          >
-            <Text style={[styles.filterText, activeFilter === 'TODAY' && styles.filterTextActive]}>
-              Today
-            </Text>
-          </TouchableOpacity>
         </View>
       )}
 
@@ -281,13 +274,7 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
           <Text style={styles.loadingText}>Loading {activeTab === 'SCANS' ? 'scan' : 'vehicle'} history...</Text>
         </View>
       ) : (
-        <ScrollView
-          style={styles.content}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          contentContainerStyle={styles.scrollContent}
-        >
+        <View style={styles.scrollContent}>
           {activeTab === 'SCANS' ? (
             // Scan History List
             filteredScans.length === 0 ? (
@@ -400,8 +387,9 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
               ))
             )
           )}
-        </ScrollView>
+        </View>
       )}
+      </ScrollView>
 
       {/* Scan Detail — full-screen modal */}
       <Modal

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Modal, RefreshControl, Alert, StatusBar, Clipboard,
+  Modal, RefreshControl, StatusBar, Clipboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,8 @@ import QRCode from 'react-native-qrcode-svg';
 import { SecurityPersonnel, ScreenName } from '../../types';
 import { API_CONFIG } from '../../config/api.config';
 import SecurityBottomNav from '../../components/SecurityBottomNav';
+import SuccessModal from '../../components/SuccessModal';
+import ErrorModal from '../../components/ErrorModal';
 
 interface VisitorRequest {
   id: number;
@@ -37,6 +39,10 @@ const SecurityVisitorQRScreen: React.FC<Props> = ({ security, onBack, onNavigate
   const [selectedVisitor, setSelectedVisitor] = useState<VisitorRequest | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => { fetchVisitors(); }, []);
   useEffect(() => { applyFilter(); }, [selectedFilter, visitors]);
@@ -72,7 +78,8 @@ const SecurityVisitorQRScreen: React.FC<Props> = ({ security, onBack, onNavigate
 
   const openQRModal = (visitor: VisitorRequest) => {
     if (visitor.status !== 'APPROVED') {
-      Alert.alert('Not Approved', 'This visitor request has not been approved yet.');
+      setErrorMessage('This visitor request has not been approved yet.');
+      setShowErrorModal(true);
       return;
     }
     setSelectedVisitor(visitor);
@@ -82,9 +89,11 @@ const SecurityVisitorQRScreen: React.FC<Props> = ({ security, onBack, onNavigate
   const copyManualCode = (code: string) => {
     try {
       Clipboard.setString(code);
-      Alert.alert('Copied!', 'Manual code copied to clipboard');
+      setSuccessMessage('Manual code copied to clipboard');
+      setShowSuccessModal(true);
     } catch {
-      Alert.alert('Error', 'Failed to copy code');
+      setErrorMessage('Failed to copy code');
+      setShowErrorModal(true);
     }
   };
 
@@ -245,6 +254,18 @@ const SecurityVisitorQRScreen: React.FC<Props> = ({ security, onBack, onNavigate
       </Modal>
 
       <SecurityBottomNav activeTab="visitor" onNavigate={onNavigate} />
+
+      <SuccessModal
+        visible={showSuccessModal}
+        message={successMessage}
+        onClose={() => setShowSuccessModal(false)}
+      />
+      <ErrorModal
+        visible={showErrorModal}
+        type="general"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
+      />
     </SafeAreaView>
   );
 };

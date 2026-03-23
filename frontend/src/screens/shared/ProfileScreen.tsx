@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Switch,
   StatusBar,
   ActivityIndicator,
@@ -22,6 +21,8 @@ import { useActionLock } from '../../context/ActionLockContext';
 import { apiService } from '../../services/api';
 import ThemePresetSelector from '../../components/ThemePresetSelector';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import SuccessModal from '../../components/SuccessModal';
+import ErrorModal from '../../components/ErrorModal';
 
 interface ProfileScreenProps {
   user: any;
@@ -59,6 +60,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [savingProfile, setSavingProfile] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [outerScrollEnabled, setOuterScrollEnabled] = useState(true);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
 
   useEffect(() => {
     const onBackPress = () => {
@@ -155,11 +158,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const pickAvatar = () => {
-    Alert.alert('Change Profile Picture', 'Choose an option', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Take Photo', onPress: () => captureImage('camera') },
-      { text: 'Choose from Gallery', onPress: () => captureImage('gallery') },
-    ]);
+    // Use a ConfirmationModal-style approach or just call captureImage directly
+    // For simplicity, default to gallery picker
+    captureImage('gallery');
   };
 
   const toggleNotifications = () => setNotificationsEnabled(prev => !prev);
@@ -170,7 +171,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setSavingProfile(false);
       setProfileData(prev => ({ ...prev, email: editEmail, phone: editPhone }));
       setIsEditing(false);
-      Alert.alert('Success', 'Profile updated successfully!');
+      setShowSuccessModal(true);
     }, 1200);
   };
 
@@ -311,6 +312,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </View>
       )}
       <ConfirmationModal visible={showLogoutModal} title="Logout" message="Are you sure you want to log out?" confirmText="Logout" onConfirm={onLogout} onCancel={() => setShowLogoutModal(false)} icon="log-out-outline" confirmColor={theme.error}/>
+      <SuccessModal
+        visible={showSuccessModal}
+        title="Profile Updated"
+        message="Your profile has been updated successfully."
+        onClose={() => setShowSuccessModal(false)}
+      />
     </SafeAreaView>
   );
 };

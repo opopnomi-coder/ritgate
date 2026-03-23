@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
@@ -12,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Camera, CameraView } from 'expo-camera';
 import { THEME } from '../../config/api.config';
+import ErrorModal from '../../components/ErrorModal';
 
 interface QRLoginScannerProps {
   onScanSuccess: (qrData: string) => void;
@@ -22,6 +22,8 @@ const QRLoginScanner: React.FC<QRLoginScannerProps> = ({ onScanSuccess, onClose 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     requestCameraPermission();
@@ -33,21 +35,13 @@ const QRLoginScanner: React.FC<QRLoginScannerProps> = ({ onScanSuccess, onClose 
       setHasPermission(status === 'granted');
       
       if (status !== 'granted') {
-        Alert.alert(
-          'Camera Permission Required',
-          'Please grant camera permission to scan QR codes for login.',
-          [
-            { text: 'Cancel', onPress: onClose, style: 'cancel' },
-            { text: 'Open Settings', onPress: () => {
-              // On iOS/Android, this would open app settings
-              Alert.alert('Please enable camera permission in your device settings');
-            }}
-          ]
-        );
+        setErrorMessage('Please grant camera permission in your device settings to scan QR codes for login.');
+        setShowErrorModal(true);
       }
     } catch (error) {
       console.error('Error requesting camera permission:', error);
-      Alert.alert('Error', 'Failed to request camera permission');
+      setErrorMessage('Failed to request camera permission');
+      setShowErrorModal(true);
       onClose();
     }
   };
@@ -58,17 +52,14 @@ const QRLoginScanner: React.FC<QRLoginScannerProps> = ({ onScanSuccess, onClose 
     setScanned(true);
     setScanning(true);
     
-    console.log('📷 QR Code scanned:', data);
-    
-    // Validate QR data format
     if (!data || data.trim().length === 0) {
-      Alert.alert('Invalid QR Code', 'The scanned QR code is empty');
+      setErrorMessage('The scanned QR code is empty');
+      setShowErrorModal(true);
       setScanned(false);
       setScanning(false);
       return;
     }
 
-    // Pass the QR data to parent component
     onScanSuccess(data);
   };
 
@@ -174,7 +165,12 @@ const QRLoginScanner: React.FC<QRLoginScannerProps> = ({ onScanSuccess, onClose 
         )}
       </View>
 
-
+      <ErrorModal
+        visible={showErrorModal}
+        type="general"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
+      />
     </SafeAreaView>
   );
 };

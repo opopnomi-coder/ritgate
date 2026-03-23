@@ -9,7 +9,6 @@ import {
   StatusBar,
   Platform,
   Linking,
-  Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -17,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../services/api';
 import { HODContact, SecurityPersonnel, ScreenName } from '../../types';
 import SecurityBottomNav from '../../components/SecurityBottomNav';
+import ErrorModal from '../../components/ErrorModal';
 
 interface HODContactsScreenProps {
   security: SecurityPersonnel;
@@ -31,6 +31,8 @@ export default function HODContactsScreen({ security, onBack, onNavigate }: HODC
   const [selectedDepartment, setSelectedDepartment] = useState<string>('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const departments = ['ALL', 'CSE', 'ECE', 'IT', 'AIDS', 'AIML', 'MECH', 'EEE', 'CCE', 'CSBS', 'VLSI', 'ADMIN'];
 
@@ -50,10 +52,12 @@ export default function HODContactsScreen({ security, onBack, onNavigate }: HODC
         setHods(response.data);
         setFilteredHods(response.data);
       } else {
-        Alert.alert('Error', 'Failed to fetch HOD contacts');
+        setErrorMessage('Failed to fetch HOD contacts');
+        setShowErrorModal(true);
       }
     } catch (error) {
-      Alert.alert('Connection Error', 'Could not connect to server');
+      setErrorMessage('Could not connect to server');
+      setShowErrorModal(true);
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +106,8 @@ export default function HODContactsScreen({ security, onBack, onNavigate }: HODC
       }
     } catch (error) {
       console.error('Error opening phone dialer:', error);
-      Alert.alert('Error', 'Failed to open phone dialer');
+      setErrorMessage('Failed to open phone dialer');
+      setShowErrorModal(true);
     }
   };
 
@@ -115,15 +120,13 @@ export default function HODContactsScreen({ security, onBack, onNavigate }: HODC
       if (canOpen) {
         await Linking.openURL(whatsappUrl);
       } else {
-        Alert.alert(
-          'WhatsApp Not Found',
-          'Please install WhatsApp to send messages to HODs.',
-          [{ text: 'OK' }]
-        );
+        setErrorMessage('Please install WhatsApp to send messages to HODs.');
+        setShowErrorModal(true);
       }
     } catch (error) {
       console.error('Error opening WhatsApp:', error);
-      Alert.alert('Error', 'Failed to open WhatsApp');
+      setErrorMessage('Failed to open WhatsApp');
+      setShowErrorModal(true);
     }
   };
 
@@ -290,6 +293,13 @@ export default function HODContactsScreen({ security, onBack, onNavigate }: HODC
 
       {/* Bottom Navigation */}
       <SecurityBottomNav activeTab="contacts" onNavigate={onNavigate} />
+
+      <ErrorModal
+        visible={showErrorModal}
+        type="general"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
+      />
     </View>
   );
 }

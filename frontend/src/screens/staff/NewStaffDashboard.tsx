@@ -341,6 +341,13 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
       </View>
 
       {/* Search Bar */}
+      <ScrollView
+        style={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      >
+      {/* Search Input */}
       <View style={[styles.searchContainer, { backgroundColor: theme.surface }]}>
         <Ionicons name="search" size={20} color={theme.textTertiary} />
         <TextInput
@@ -392,13 +399,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
       </View>
 
       {/* Request List */}
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={styles.scrollContent}
-      >
+      <View style={styles.scrollContent}>
         {filteredRequests.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="checkmark-done-circle-outline" size={64} color={theme.border} />
@@ -502,6 +503,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
             </TouchableOpacity>
           ))
         )}
+      </View>
       </ScrollView>
 
       {/* Bottom Navigation */}

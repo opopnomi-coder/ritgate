@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Image,
   Platform,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,7 +68,8 @@ const ModernBulkGatePassScreen: React.FC<ModernBulkGatePassScreenProps> = ({ use
       }
     } catch (error) {
       console.error('Error loading students:', error);
-      Alert.alert('Error', 'Failed to load students');
+      setErrorMessage('Failed to load students');
+      setShowErrorModal(true);
     } finally {
       setIsLoading(false);
     }

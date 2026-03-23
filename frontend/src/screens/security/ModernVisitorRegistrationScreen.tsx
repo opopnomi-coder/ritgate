@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   StatusBar,
-  Alert,
-  Modal,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +15,8 @@ import { Picker } from '@react-native-picker/picker';
 import { SecurityPersonnel, ScreenName, Department, StaffMember } from '../../types';
 import { apiService } from '../../services/api';
 import SecurityBottomNav from '../../components/SecurityBottomNav';
+import SuccessModal from '../../components/SuccessModal';
+import ErrorModal from '../../components/ErrorModal';
 
 interface ModernVisitorRegistrationScreenProps {
   security: SecurityPersonnel;
@@ -42,6 +42,8 @@ const ModernVisitorRegistrationScreen: React.FC<ModernVisitorRegistrationScreenP
   const [purpose, setPurpose] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [registeredVisitorName, setRegisteredVisitorName] = useState('');
 
   useEffect(() => {
@@ -63,64 +65,61 @@ const ModernVisitorRegistrationScreen: React.FC<ModernVisitorRegistrationScreenP
 
   const loadDepartments = async () => {
     try {
-      console.log('📋 Loading departments...');
       const response = await apiService.getDepartments();
-      console.log('📋 Departments response:', response);
       if (response.success && response.data) {
-        console.log('📋 Departments loaded:', response.data.length);
         setDepartments(response.data);
       } else {
-        console.error('❌ Failed to load departments:', response.message);
-        Alert.alert('Error', 'Failed to load departments. Please try again.');
+        setErrorMessage('Failed to load departments. Please try again.');
+        setShowErrorModal(true);
       }
     } catch (error) {
-      console.error('❌ Error loading departments:', error);
-      Alert.alert('Error', 'Failed to load departments. Please check your connection.');
+      setErrorMessage('Failed to load departments. Please check your connection.');
+      setShowErrorModal(true);
     }
   };
 
   const loadStaffMembers = async (deptId: string) => {
     try {
-      console.log('👥 Loading staff for department:', deptId);
       const response = await apiService.getStaffByDepartment(deptId);
-      console.log('👥 Staff response:', response);
       if (response.success && response.data) {
-        console.log('👥 Staff loaded:', response.data.length);
         setStaffMembers(response.data);
       } else {
-        console.error('❌ Failed to load staff:', response.message);
         setStaffMembers([]);
       }
     } catch (error) {
-      console.error('❌ Error loading staff:', error);
       setStaffMembers([]);
     }
   };
 
   const handleSubmit = async () => {
-    // Validation
     if (visitorNames.some(name => !name.trim())) {
-      Alert.alert('Error', 'Please enter names for all visitors');
+      setErrorMessage('Please enter names for all visitors');
+      setShowErrorModal(true);
       return;
     }
     if (!visitorEmail.trim() || !visitorEmail.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      setErrorMessage('Please enter a valid email address');
+      setShowErrorModal(true);
       return;
     }
     if (!visitorPhone.trim() || visitorPhone.length < 10) {
-      Alert.alert('Error', 'Please enter a valid phone number (minimum 10 digits)');
+      setErrorMessage('Please enter a valid phone number (minimum 10 digits)');
+      setShowErrorModal(true);
       return;
     }
     if (!selectedDepartment) {
-      Alert.alert('Error', 'Please select a department');
+      setErrorMessage('Please select a department');
+      setShowErrorModal(true);
       return;
     }
     if (!selectedStaff) {
-      Alert.alert('Error', 'Please select a staff member to meet');
+      setErrorMessage('Please select a staff member to meet');
+      setShowErrorModal(true);
       return;
     }
     if (!purpose.trim()) {
-      Alert.alert('Error', 'Please enter the purpose of visit');
+      setErrorMessage('Please enter the purpose of visit');
+      setShowErrorModal(true);
       return;
     }
 
@@ -144,10 +143,12 @@ const ModernVisitorRegistrationScreen: React.FC<ModernVisitorRegistrationScreenP
         resetForm();
         setShowSuccessModal(true);
       } else {
-        Alert.alert('Registration Failed', response.message || 'Could not register visitor. Please try again.');
+        setErrorMessage(response.message || 'Could not register visitor. Please try again.');
+        setShowErrorModal(true);
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to register visitor. Please check your connection.');
+      setErrorMessage('Failed to register visitor. Please check your connection.');
+      setShowErrorModal(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -342,45 +343,22 @@ const ModernVisitorRegistrationScreen: React.FC<ModernVisitorRegistrationScreenP
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Success Modal */}
-      <Modal visible={showSuccessModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.successModal}>
-            <View style={styles.successIcon}>
-              <Ionicons name="checkmark-circle" size={56} color="#10B981" />
-            </View>
-            <Text style={styles.successTitle}>Visitor Registered!</Text>
-            <Text style={styles.successMessage}>
-              <Text style={styles.successName}>{registeredVisitorName}</Text>
-              {' '}has been registered successfully.{'\n'}The staff member has been notified for approval.
-            </Text>
-            <View style={styles.successActions}>
-              <TouchableOpacity
-                style={styles.actionButtonSecondary}
-                onPress={() => {
-                  setShowSuccessModal(false);
-                }}
-              >
-                <Ionicons name="person-add-outline" size={18} color="#00BCD4" />
-                <Text style={styles.actionButtonSecondaryText}>Register Another</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButtonPrimary}
-                onPress={() => {
-                  setShowSuccessModal(false);
-                  onNavigate('VISITOR_QR');
-                }}
-              >
-                <Ionicons name="qr-code-outline" size={18} color="#FFF" />
-                <Text style={styles.actionButtonPrimaryText}>View QR Codes</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       {/* Bottom Navigation */}
       <SecurityBottomNav activeTab="visitor" onNavigate={onNavigate} />
+
+      <SuccessModal
+        visible={showSuccessModal}
+        title="Visitor Registered!"
+        message={`${registeredVisitorName} has been registered successfully. The staff member has been notified for approval.`}
+        onClose={() => setShowSuccessModal(false)}
+        autoClose={false}
+      />
+      <ErrorModal
+        visible={showErrorModal}
+        type="validation"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
+      />
     </SafeAreaView>
   );
 };

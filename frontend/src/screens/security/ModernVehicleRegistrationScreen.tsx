@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   StatusBar,
-  Alert,
   ActivityIndicator,
   Modal,
 } from 'react-native';
@@ -16,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { SecurityPersonnel, ScreenName } from '../../types';
 import { apiService } from '../../services/api';
 import SecurityBottomNav from '../../components/SecurityBottomNav';
+import SuccessModal from '../../components/SuccessModal';
+import ErrorModal from '../../components/ErrorModal';
 
 interface ModernVehicleRegistrationScreenProps {
   security: SecurityPersonnel;
@@ -43,6 +44,10 @@ const ModernVehicleRegistrationScreen: React.FC<ModernVehicleRegistrationScreenP
   const [recentVehicles, setRecentVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   
   // Registration form
   const [licensePlate, setLicensePlate] = useState('');
@@ -77,20 +82,18 @@ const ModernVehicleRegistrationScreen: React.FC<ModernVehicleRegistrationScreenP
       const response = await apiService.searchVehicle(searchQuery);
       if (response.success && response.data && response.data.length > 0) {
         setSearchResults(response.data);
-        // Auto-fill form with first result
         const vehicle = response.data[0];
         fillFormWithVehicleData(vehicle);
-        Alert.alert(
-          'Vehicle Found', 
-          'Vehicle details have been loaded. You can update the information if needed.',
-          [{ text: 'OK' }]
-        );
+        setSuccessMessage('Vehicle details have been loaded. You can update the information if needed.');
+        setShowSuccessModal(true);
       } else {
         setSearchResults([]);
-        Alert.alert('Not Found', 'No vehicles found with that license plate. You can register a new vehicle.');
+        setErrorMessage('No vehicles found with that license plate. You can register a new vehicle.');
+        setShowErrorModal(true);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to search vehicle');
+      setErrorMessage('Failed to search vehicle');
+      setShowErrorModal(true);
     } finally {
       setLoading(false);
     }
@@ -108,11 +111,11 @@ const ModernVehicleRegistrationScreen: React.FC<ModernVehicleRegistrationScreenP
 
   const handleRegister = () => {
     if (!licensePlate.trim() || !vehicleType || !ownerName.trim() || !ownerPhone.trim()) {
-      Alert.alert('Error', 'Please fill all required fields');
+      setErrorMessage('Please fill all required fields');
+      setShowErrorModal(true);
       return;
     }
 
-    // Reset form immediately, fire API in background
     const payload = {
       licensePlate: licensePlate.toUpperCase(),
       vehicleType,
@@ -124,6 +127,8 @@ const ModernVehicleRegistrationScreen: React.FC<ModernVehicleRegistrationScreenP
       registeredBy: security.securityId,
     };
     resetForm();
+    setSuccessMessage('Vehicle registered successfully');
+    setShowSuccessModal(true);
     apiService.registerVehicle(payload).catch(err => console.error('Vehicle registration error:', err));
   };
 
@@ -211,11 +216,8 @@ const ModernVehicleRegistrationScreen: React.FC<ModernVehicleRegistrationScreenP
                   style={styles.vehicleCard}
                   onPress={() => {
                     fillFormWithVehicleData(vehicle);
-                    Alert.alert(
-                      'Vehicle Loaded',
-                      'Vehicle details have been loaded into the form. You can update the information if needed.',
-                      [{ text: 'OK' }]
-                    );
+                    setSuccessMessage('Vehicle details have been loaded into the form. You can update the information if needed.');
+                    setShowSuccessModal(true);
                   }}
                 >
                   <View style={styles.vehicleIcon}>
@@ -463,6 +465,18 @@ const ModernVehicleRegistrationScreen: React.FC<ModernVehicleRegistrationScreenP
 
       {/* Bottom Navigation */}
       <SecurityBottomNav activeTab="vehicle" onNavigate={onNavigate} />
+
+      <SuccessModal
+        visible={showSuccessModal}
+        message={successMessage}
+        onClose={() => setShowSuccessModal(false)}
+      />
+      <ErrorModal
+        visible={showErrorModal}
+        type="validation"
+        message={errorMessage}
+        onClose={() => setShowErrorModal(false)}
+      />
     </SafeAreaView>
   );
 };

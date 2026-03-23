@@ -1499,50 +1499,55 @@ public class SecurityController {
     public ResponseEntity<List<java.util.Map<String, Object>>> getActivePersons() {
         try {
             List<ScanLog> allScans = scanLogRepository.findAll();
-            
-            // Group scans by person name only (not QR code, since manual exits may have different QR codes)
+
+            // Only consider VISITOR entries — students/staff manage their own entry/exit via QR
+            // Group by person name
             java.util.Map<String, java.util.List<ScanLog>> scansByPerson = new java.util.HashMap<>();
-            
             for (ScanLog scan : allScans) {
                 String key = scan.getPersonName();
+                if (key == null || key.isBlank()) continue;
+                String utype = scan.getUserType() != null ? scan.getUserType().toUpperCase() : "";
+                // Only track visitors
+                if (!"VISITOR".equals(utype) && !"VG".equals(utype)) continue;
                 scansByPerson.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(scan);
             }
-            
-            // Build active persons list - ONLY PENDING (inside campus)
+
             List<java.util.Map<String, Object>> activePersons = new java.util.ArrayList<>();
             int id = 1;
-            
+
             for (java.util.List<ScanLog> personScans : scansByPerson.values()) {
                 if (personScans.isEmpty()) continue;
-                
-                // Filter out scans with null scanTime
-                personScans.removeIf(scan -> scan.getScanTime() == null);
+
+                // Use timestamp (DB column) for sorting — scanTime is @Transient
+                personScans.removeIf(scan -> scan.getTimestamp() == null);
                 if (personScans.isEmpty()) continue;
-                
-                // Sort by scan time
-                personScans.sort((a, b) -> a.getScanTime().compareTo(b.getScanTime()));
-                
+
+                personScans.sort((a, b) -> a.getTimestamp().compareTo(b.getTimestamp()));
+
                 ScanLog firstScan = personScans.get(0);
-                ScanLog lastScan = personScans.get(personScans.size() - 1);
-                
-                // Only include if status is PENDING (last scan was at entry)
-                if (lastScan.getScanLocation() != null && 
-                    !lastScan.getScanLocation().toLowerCase().contains("exit")) {
-                    
-                    java.util.Map<String, Object> person = new java.util.HashMap<>();
-                    person.put("id", id++);
-                    person.put("name", firstScan.getPersonName());
-                    person.put("type", firstScan.getPersonType() != null ? firstScan.getPersonType().toString() : "UNKNOWN");
-                    person.put("purpose", firstScan.getPurpose() != null ? firstScan.getPurpose() : "General");
-                    person.put("status", "PENDING");
-                    person.put("inTime", firstScan.getScanTime().toString());
-                    person.put("outTime", null);
-                    
-                    activePersons.add(person);
+                ScanLog lastScan  = personScans.get(personScans.size() - 1);
+
+                // Only include if the last scan is NOT an exit scan
+                if (lastScan.getScanLocation() != null &&
+                    lastScan.getScanLocation().toLowerCase().contains("exit")) {
+                    continue;
                 }
+
+                java.util.Map<String, Object> person = new java.util.HashMap<>();
+                person.put("id", id++);
+                person.put("name", firstScan.getPersonName());
+                person.put("type", "VISITOR");
+                person.put("purpose", firstScan.getPurpose() != null ? firstScan.getPurpose() : "General");
+                person.put("status", "PENDING");
+                person.put("inTime", firstScan.getTimestamp().toString());
+                person.put("outTime", null);
+                if (firstScan.getDepartment() != null) person.put("department", firstScan.getDepartment());
+                if (firstScan.getUserId() != null) person.put("userId", firstScan.getUserId());
+
+                activePersons.add(person);
             }
-            
-            System.out.println("Fetched " + activePersons.size() + " active persons (PENDING only)");
+
+            System.out.println("Fetched " + activePersons.size() + " active visitors (PENDING only)");
             return ResponseEntity.ok(activePersons);
         } catch (Exception e) {
             System.err.println("Error fetching active persons: " + e.getMessage());
@@ -2446,7 +2451,7 @@ public class SecurityController {
             
             // Step 4: Write to the correct history table
             if (shouldSaveEntryLog) {
-                // Visitor entries must be stored in Entry table (ScanLog).
+                // Visitor entry — stored in Entry table (ScanLog) so they appear in active-persons
                 ScanLog scanLog = new ScanLog();
                 scanLog.setQrCode(qrCode);
                 scanLog.setPersonName(personName);
@@ -2461,10 +2466,10 @@ public class SecurityController {
                 scanLog.setUserId(userId);
                 scanLog.setUserType(type);
                 scanLog.setQrId(qrTable.getId());
-
                 scanLogRepository.save(scanLog);
+
             } else if (shouldCreateExitLog) {
-                // Exits must be stored in Exit_logs table (RailwayExitLog).
+                // Exit — stored in Exit_logs table (RailwayExitLog) for history
                 RailwayExitLog exitLog = new RailwayExitLog();
                 exitLog.setQrId(qrIdForExit != null ? qrIdForExit : qrTable.getId());
                 exitLog.setUserId(userId);
@@ -2480,6 +2485,20 @@ public class SecurityController {
                 exitLog.setScanLocation(scanLocation);
                 exitLog.setAccessGranted(true);
                 railwayExitLogRepository.save(exitLog);
+
+                // For visitors: also write an exit ScanLog row so they are removed from active-persons
+                if ("VISITOR".equals(exitUserType)) {
+                    ScanLog exitScan = new ScanLog();
+                    exitScan.setPersonName(personName);
+                    exitScan.setUserType("VISITOR");
+                    exitScan.setScanLocation("Exit Gate");
+                    exitScan.setScannedBy(scannedBy != null ? scannedBy : "Security Guard");
+                    exitScan.setTimestamp(exitTime);
+                    exitScan.setUserId(userId);
+                    exitScan.setDepartment(department);
+                    exitScan.setAccessGranted(true);
+                    scanLogRepository.save(exitScan);
+                }
             }
             
             System.out.println("✅ Single Pass validated successfully for: " + personName);
@@ -2552,133 +2571,119 @@ public class SecurityController {
         }
     }
     
-    // Manual Exit Endpoint - Record exit manually for visitors
+    // Manual Exit Endpoint - Record exit manually for a visitor (when exit QR scan was missed)
     @PostMapping("/manual-exit")
     @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<?> recordManualExit(@RequestBody java.util.Map<String, Object> request) {
         try {
             String personName = (String) request.get("personName");
-            Object visitorIdObj = request.get("visitorId");
-            String scannedBy = (String) request.get("scannedBy");
-            
+            String scannedBy  = (String) request.get("scannedBy");
+
             if (personName == null || personName.trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(java.util.Map.of(
                     "status", "ERROR",
                     "message", "Person name is required"
                 ));
             }
-            
-            System.out.println("🚪 Recording manual exit for: " + personName);
-            
-            // Try to find visitor by ID or name
-            Visitor visitor = null;
-            
-            if (visitorIdObj != null) {
-                try {
-                    Long visitorId = null;
-                    if (visitorIdObj instanceof Integer) {
-                        visitorId = ((Integer) visitorIdObj).longValue();
-                    } else if (visitorIdObj instanceof Long) {
-                        visitorId = (Long) visitorIdObj;
-                    } else if (visitorIdObj instanceof String) {
-                        visitorId = Long.parseLong((String) visitorIdObj);
-                    }
-                    
-                    if (visitorId != null) {
-                        Optional<Visitor> visitorOpt = visitorRepository.findById(visitorId);
-                        if (visitorOpt.isPresent()) {
-                            visitor = visitorOpt.get();
-                            System.out.println("✅ Found visitor by ID: " + visitorId);
-                        }
-                    }
-                } catch (Exception e) {
-                    System.err.println("⚠️ Could not parse visitor ID: " + e.getMessage());
-                }
-            }
-            
-            // If not found by ID, try to find by name
-            if (visitor == null) {
-                List<Visitor> visitors = visitorRepository.findAll().stream()
-                    .filter(v -> v.getName().equalsIgnoreCase(personName.trim()))
-                    .filter(v -> "APPROVED".equals(v.getStatus()))
-                    .filter(v -> v.getExitTime() == null) // Not yet exited
-                    .collect(java.util.stream.Collectors.toList());
-                
-                if (!visitors.isEmpty()) {
-                    visitor = visitors.get(0); // Take the first match
-                    System.out.println("✅ Found visitor by name: " + personName);
-                }
-            }
-            
-            if (visitor == null) {
-                System.out.println("❌ Visitor not found or already exited: " + personName);
+
+            System.out.println("🚪 Manual exit for visitor: " + personName);
+
+            // ── Step 1: Find the visitor's most recent ScanLog entry ──────────────────
+            List<ScanLog> personEntries = scanLogRepository.findAll().stream()
+                .filter(s -> personName.equalsIgnoreCase(s.getPersonName()))
+                .filter(s -> s.getTimestamp() != null)
+                .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
+                .collect(java.util.stream.Collectors.toList());
+
+            if (personEntries.isEmpty()) {
                 return ResponseEntity.status(404).body(java.util.Map.of(
                     "status", "ERROR",
-                    "message", "Visitor not found or already exited"
+                    "message", "No entry record found for: " + personName
                 ));
             }
-            
-            // Record exit time
+
+            // Check if already exited
+            ScanLog lastScan = personEntries.get(0);
+            if (lastScan.getScanLocation() != null &&
+                lastScan.getScanLocation().toLowerCase().contains("exit")) {
+                return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "status", "ERROR",
+                    "message", personName + " has already exited"
+                ));
+            }
+
             java.time.LocalDateTime exitTime = java.time.LocalDateTime.now();
-            visitor.setExitTime(exitTime);
-            visitor.setScanCount(2); // Mark as completed (entry + exit)
-            visitorRepository.save(visitor);
-            
-            System.out.println("✅ Exit time recorded for visitor: " + visitor.getName() + " at " + exitTime);
-            
-            // Create exit record for manual visitor exit (must go to Exit_logs, not Entry/ScanLog).
-            Optional<QRTable> qrTableOpt = Optional.empty();
+            ScanLog entryScan = personEntries.get(personEntries.size() - 1); // oldest = entry
+
+            // ── Step 2: Write exit ScanLog row so active-persons removes this visitor ──
+            ScanLog exitScan = new ScanLog();
+            exitScan.setPersonName(personName);
+            exitScan.setUserType("VISITOR");
+            exitScan.setScanLocation("Exit Gate (Manual)");
+            exitScan.setScannedBy(scannedBy != null ? scannedBy : "Security Guard (Manual)");
+            exitScan.setTimestamp(exitTime);
+            exitScan.setUserId(entryScan.getUserId() != null ? entryScan.getUserId() : personName);
+            exitScan.setDepartment(entryScan.getDepartment());
+            exitScan.setAccessGranted(true);
+            scanLogRepository.save(exitScan);
+
+            // ── Step 3: Write RailwayExitLog so it appears in scan history ────────────
+            String visitorUserId = entryScan.getUserId();
+            String department    = entryScan.getDepartment();
+            String purpose       = "Manual Exit";
+            String qrCodeStr     = null;
+
+            // Also update the Visitor entity exit time if found
             try {
-                if (visitor.getQrCode() != null) {
-                    String[] parts = visitor.getQrCode().split("\\|");
-                    if (parts.length >= 3) {
-                        String token = parts[2];
-                        qrTableOpt = qrTableRepository.findByQrCode(token);
-                    }
+                List<Visitor> visitors = visitorRepository.findAll().stream()
+                    .filter(v -> v.getName() != null && v.getName().equalsIgnoreCase(personName.trim()))
+                    .filter(v -> v.getExitTime() == null)
+                    .collect(java.util.stream.Collectors.toList());
+                if (!visitors.isEmpty()) {
+                    Visitor v = visitors.get(0);
+                    v.setExitTime(exitTime);
+                    v.setScanCount(2);
+                    visitorRepository.save(v);
+                    visitorUserId = v.getId().toString();
+                    if (v.getDepartment() != null) department = v.getDepartment();
+                    if (v.getPurpose()    != null) purpose    = v.getPurpose();
+                    qrCodeStr = v.getQrCode();
+                    // Clean up QR table entry
+                    try {
+                        if (qrCodeStr != null) {
+                            String[] parts = qrCodeStr.split("\\|");
+                            if (parts.length >= 3) {
+                                qrTableRepository.findByQrCode(parts[2]).ifPresent(qrTableRepository::delete);
+                            }
+                        }
+                    } catch (Exception ignored) {}
                 }
             } catch (Exception e) {
-                System.err.println("⚠️ Could not parse visitor QR code for manual exit: " + e.getMessage());
+                System.err.println("⚠️ Could not update Visitor entity: " + e.getMessage());
             }
 
             RailwayExitLog exitLog = new RailwayExitLog();
-            exitLog.setQrId(qrTableOpt.isPresent() ? qrTableOpt.get().getId() : null);
-            exitLog.setUserId(visitor.getId().toString());
+            exitLog.setUserId(visitorUserId);
             exitLog.setUserType("VISITOR");
             exitLog.setExitTime(exitTime);
             exitLog.setVerifiedBy(scannedBy != null ? scannedBy : "Security Guard (Manual)");
             exitLog.setLocation("Exit Gate (Manual)");
-            exitLog.setPersonName(visitor.getName());
-            exitLog.setDepartment(visitor.getDepartment());
-            exitLog.setEmail(visitor.getEmail());
-            exitLog.setPhone(visitor.getPhone());
-            exitLog.setPurpose(visitor.getPurpose());
-            exitLog.setQrCode(visitor.getQrCode());
+            exitLog.setPersonName(personName);
+            exitLog.setDepartment(department);
+            exitLog.setPurpose(purpose);
+            exitLog.setQrCode(qrCodeStr);
             exitLog.setScanLocation("Exit Gate (Manual)");
             exitLog.setAccessGranted(true);
             railwayExitLogRepository.save(exitLog);
-            
-            // Delete QR code from qr_table if exists
-            try {
-                qrTableOpt.ifPresent(qrTableRepository::delete);
-                if (qrTableOpt.isPresent()) {
-                    System.out.println("✅ Deleted QR table entry for visitor: " + visitor.getName());
-                }
-            } catch (Exception e) {
-                System.err.println("⚠️ Could not delete QR table entry: " + e.getMessage());
-            }
-            
-            // Return success response
-            java.util.Map<String, Object> response = new java.util.HashMap<>();
-            response.put("status", "SUCCESS");
-            response.put("message", "Manual exit recorded successfully");
-            response.put("visitorId", visitor.getId());
-            response.put("visitorName", visitor.getName());
-            response.put("exitTime", exitTime.format(java.time.format.DateTimeFormatter.ISO_DATE_TIME));
-            response.put("entryTime", visitor.getEntryTime() != null ? visitor.getEntryTime().format(java.time.format.DateTimeFormatter.ISO_DATE_TIME) : null);
-            response.put("scanCount", visitor.getScanCount());
-            
-            return ResponseEntity.ok(response);
-            
+            System.out.println("✅ Manual exit recorded for visitor: " + personName);
+
+            java.util.Map<String, Object> resp = new java.util.HashMap<>();
+            resp.put("status", "SUCCESS");
+            resp.put("message", "Manual exit recorded successfully");
+            resp.put("personName", personName);
+            resp.put("exitTime", exitTime.format(java.time.format.DateTimeFormatter.ISO_DATE_TIME));
+            return ResponseEntity.ok(resp);
+
         } catch (Exception e) {
             System.err.println("❌ Error recording manual exit: " + e.getMessage());
             e.printStackTrace();
@@ -2689,6 +2694,63 @@ public class SecurityController {
         }
     }
 
+
+    // Dashboard Stats Endpoint — active visitors + today's exits
+    @GetMapping("/stats")
+    public ResponseEntity<?> getDashboardStats() {
+        try {
+            // Active = visitors whose last ScanLog is NOT an exit
+            List<ScanLog> allScans = scanLogRepository.findAll();
+            java.util.Map<String, java.util.List<ScanLog>> byPerson = new java.util.HashMap<>();
+            for (ScanLog s : allScans) {
+                String key = s.getPersonName();
+                if (key == null || key.isBlank()) continue;
+                String utype = s.getUserType() != null ? s.getUserType().toUpperCase() : "";
+                if (!"VISITOR".equals(utype) && !"VG".equals(utype)) continue;
+                if (s.getTimestamp() == null) continue;
+                byPerson.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(s);
+            }
+            long active = byPerson.values().stream().filter(scans -> {
+                scans.sort((a, b) -> a.getTimestamp().compareTo(b.getTimestamp()));
+                ScanLog last = scans.get(scans.size() - 1);
+                return last.getScanLocation() == null || !last.getScanLocation().toLowerCase().contains("exit");
+            }).count();
+
+            // Exited today = RailwayExitLog rows with exitTime today and VISITOR type
+            java.time.LocalDate today = java.time.LocalDate.now();
+            long exited = railwayExitLogRepository.findAll().stream()
+                .filter(e -> e.getExitTime() != null && e.getExitTime().toLocalDate().equals(today))
+                .filter(e -> {
+                    String ut = e.getUserType() != null ? e.getUserType().toUpperCase() : "";
+                    return "VISITOR".equals(ut) || "VG".equals(ut);
+                })
+                .filter(e -> Boolean.TRUE.equals(e.getAccessGranted()))
+                .count();
+
+            // Total today = visitors who entered today (first ScanLog today) + those who exited today
+            java.util.Set<String> todayNames = new java.util.HashSet<>();
+            for (java.util.List<ScanLog> scans : byPerson.values()) {
+                ScanLog first = scans.get(0);
+                if (first.getTimestamp().toLocalDate().equals(today)) {
+                    todayNames.add(first.getPersonName());
+                }
+            }
+            // Also add exited visitors from today
+            railwayExitLogRepository.findAll().stream()
+                .filter(e -> e.getExitTime() != null && e.getExitTime().toLocalDate().equals(today))
+                .filter(e -> e.getPersonName() != null)
+                .forEach(e -> todayNames.add(e.getPersonName()));
+
+            java.util.Map<String, Object> stats = new java.util.HashMap<>();
+            stats.put("active", active);
+            stats.put("exited", exited);
+            stats.put("total", todayNames.size());
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            System.err.println("Error fetching stats: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(java.util.Map.of("error", e.getMessage()));
+        }
+    }
 
     // ==================== SECURITY PROFILE ENDPOINTS ====================
 
