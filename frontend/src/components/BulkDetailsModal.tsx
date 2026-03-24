@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator,
   Image, TextInput, ScrollView, Platform, Dimensions, StatusBar,
-  KeyboardAvoidingView, Keyboard,
+  KeyboardAvoidingView, Keyboard, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -87,9 +87,26 @@ const BulkDetailsModal: React.FC<BulkDetailsModalProps> = ({
 
   const showStaffRemark = !!details?.staffRemark;
   const showHodRemark = !!details?.hodRemark;
+  const attachmentUri: string | undefined = details?.attachmentUri || details?.attachmentUrl || details?.fileUrl;
+  const attachmentName: string = String(details?.attachmentName || details?.fileName || '');
+  const attachmentMime: string = String(details?.attachmentMimeType || details?.mimeType || '').toLowerCase();
+  const isPdfAttachment =
+    attachmentMime.includes('pdf') ||
+    attachmentName.toLowerCase().endsWith('.pdf') ||
+    String(attachmentUri || '').toLowerCase().includes('.pdf');
+
+  const openAttachment = async () => {
+    if (!attachmentUri) return;
+    if (isPdfAttachment) {
+      const canOpen = await Linking.canOpenURL(attachmentUri);
+      if (canOpen) await Linking.openURL(attachmentUri);
+      return;
+    }
+    setShowFullscreenAttachment(true);
+  };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={false} statusBarTranslucent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent={false} statusBarTranslucent onRequestClose={() => !processing && onClose()}>
       <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.surface} />
 
@@ -167,15 +184,24 @@ const BulkDetailsModal: React.FC<BulkDetailsModalProps> = ({
             </View>
 
             {/* Attachment */}
-            {!!details?.attachmentUri && (
+            {!!attachmentUri && (
               <View style={[styles.block, { backgroundColor: theme.surface }]}>
                 <Text style={[styles.blockLabel, { color: theme.textTertiary }]}>PREVIEW</Text>
-                <TouchableOpacity style={styles.previewBox} onPress={() => setShowFullscreenAttachment(true)} activeOpacity={0.85}>
-                  <Image source={{ uri: details.attachmentUri }} style={styles.previewImage} resizeMode="cover" />
-                  <View style={styles.previewOverlay}>
-                    <Ionicons name="expand-outline" size={16} color="#FFF" />
-                    <Text style={styles.previewOverlayText}>Tap to expand</Text>
-                  </View>
+                <TouchableOpacity style={styles.previewBox} onPress={openAttachment} activeOpacity={0.85}>
+                  {isPdfAttachment ? (
+                    <View style={styles.pdfPreview}>
+                      <Ionicons name="document-text-outline" size={26} color="#FFFFFF" />
+                      <Text style={styles.previewOverlayText}>Open PDF</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <Image source={{ uri: attachmentUri }} style={styles.previewImage} resizeMode="cover" />
+                      <View style={styles.previewOverlay}>
+                        <Ionicons name="expand-outline" size={16} color="#FFF" />
+                        <Text style={styles.previewOverlayText}>Tap to expand</Text>
+                      </View>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
             )}
@@ -292,13 +318,13 @@ const BulkDetailsModal: React.FC<BulkDetailsModalProps> = ({
           />
         </Modal>
 
-        <Modal visible={showFullscreenAttachment} animationType="fade" transparent={true} onRequestClose={() => setShowFullscreenAttachment(false)}>
+        <Modal visible={showFullscreenAttachment} animationType="fade" transparent={true} onRequestClose={() => !processing && setShowFullscreenAttachment(false)}>
           <View style={styles.fsOverlay}>
-            <TouchableOpacity style={styles.fsCloseBtn} onPress={() => setShowFullscreenAttachment(false)}>
+            <TouchableOpacity style={styles.fsCloseBtn} onPress={() => !processing && setShowFullscreenAttachment(false)} disabled={processing}>
               <Ionicons name="close" size={28} color="#FFF" />
             </TouchableOpacity>
-            {details?.attachmentUri && (
-              <Image source={{ uri: details.attachmentUri }} style={styles.fsImage} resizeMode="contain" />
+            {attachmentUri && !isPdfAttachment && (
+              <Image source={{ uri: attachmentUri }} style={styles.fsImage} resizeMode="contain" />
             )}
           </View>
         </Modal>
@@ -339,6 +365,7 @@ const styles = StyleSheet.create({
   reasonText: { fontSize: 15, lineHeight: 22, fontWeight: '500' },
   previewBox: { width: SCREEN_W * 0.42, height: 90, borderRadius: 10, overflow: 'hidden', backgroundColor: '#000' },
   previewImage: { width: '100%', height: '100%' },
+  pdfPreview: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1F2937', gap: 6 },
   previewOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.45)', paddingVertical: 4, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 },
   previewOverlayText: { color: '#FFF', fontSize: 11, fontWeight: '600' },
   remarkChip: { borderRadius: 10, padding: 12, borderLeftWidth: 3 },

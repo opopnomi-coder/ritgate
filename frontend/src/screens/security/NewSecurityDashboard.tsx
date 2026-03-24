@@ -20,6 +20,7 @@ import SecurityBottomNav from '../../components/SecurityBottomNav';
 import { useProfile } from '../../context/ProfileContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useActionLock } from '../../context/ActionLockContext';
 import NotificationDropdown from '../../components/NotificationDropdown';
 import ConfirmationModal from '../../components/ConfirmationModal';
 import SuccessModal from '../../components/SuccessModal';
@@ -71,6 +72,7 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const { lock, unlock } = useActionLock();
 
   const [stats, setStats] = useState({
     active: 0,
@@ -188,6 +190,7 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
 
   const handleApproveVisitor = async (visitor: EscalatedVisitor) => {
     try {
+      lock('Approving visitor request...');
       const securityId = user.securityId || user.id?.toString() || 'SEC001';
       const response = await apiService.approveEscalatedVisitor(visitor.id, securityId);
       if (response.success) {
@@ -203,6 +206,8 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
       console.error('Approve visitor error:', error);
       setErrorMessage('Failed to approve visitor');
       setShowErrorModal(true);
+    } finally {
+      unlock();
     }
   };
 
@@ -216,6 +221,7 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
     if (!selectedVisitor) return;
 
     try {
+      lock('Rejecting visitor request...');
       const response = await apiService.rejectEscalatedVisitor(
         selectedVisitor.id,
         user.securityId || user.id?.toString() || 'SEC001',
@@ -236,6 +242,8 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
       console.error('Reject visitor error:', error);
       setErrorMessage('Failed to reject visitor');
       setShowErrorModal(true);
+    } finally {
+      unlock();
     }
   };
 
@@ -259,12 +267,9 @@ const NewSecurityDashboard: React.FC<NewSecurityDashboardProps> = ({
           </View>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowNotificationDropdown(true)}>
+          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => onNavigate('NOTIFICATIONS')}>
             <Ionicons name="notifications-outline" size={24} color={theme.text} />
             {unreadCount > 0 && <View style={[styles.notificationIndicator, { backgroundColor: theme.error }]} />}
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowLogoutModal(true)}>
-            <Ionicons name="log-out-outline" size={24} color={theme.error} />
           </TouchableOpacity>
         </View>
       </View>

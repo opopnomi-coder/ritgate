@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   },
   scanArea: {
     width: 250,
-    height: 150,
+    height: 250,
     position: 'relative',
   },
   corner: {

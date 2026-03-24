@@ -12,6 +12,7 @@ import {
   RefreshControl,
   Image,
   BackHandler,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -52,6 +53,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({ stat1: 0, stat2: 0, stat3: 0 });
   const [isEditing, setIsEditing] = useState(false);
@@ -144,6 +146,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
       console.log('Error fetching stats:', error);
     } finally {
       setLoadingStats(false);
+      setInitialLoading(false);
       setRefreshing(false);
     }
   };
@@ -158,9 +161,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const pickAvatar = () => {
-    // Use a ConfirmationModal-style approach or just call captureImage directly
-    // For simplicity, default to gallery picker
-    captureImage('gallery');
+    Alert.alert(
+      'Profile Photo',
+      'Choose a photo source',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Take Photo', onPress: () => captureImage('camera') },
+        { text: 'Choose from Gallery', onPress: () => captureImage('gallery') },
+      ],
+      { cancelable: true }
+    );
   };
 
   const toggleNotifications = () => setNotificationsEnabled(prev => !prev);
@@ -196,6 +206,18 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     if (!name || typeof name !== 'string') return 'U';
     return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().substring(0, 2);
   };
+
+  if (initialLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'left', 'right']}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={{ color: theme.textSecondary, marginTop: 10, fontWeight: '600' }}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'left', 'right']}>
@@ -287,12 +309,6 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <View style={[styles.prefIconBox, { backgroundColor: theme.surfaceHighlight }]}><Ionicons name="notifications-outline" size={20} color={theme.accent} /></View>
             <Text style={[styles.prefLabel, { color: theme.primary, flex: 1 }]}>Allow Notifications</Text>
             <Switch value={notificationsEnabled} onValueChange={toggleNotifications} trackColor={{ false: theme.border, true: theme.accent }} thumbColor={'#FFFFFF'} />
-          </View>
-          <View style={[styles.divider, { backgroundColor: theme.border }]} />
-          <View style={styles.prefRow}>
-            <View style={[styles.prefIconBox, { backgroundColor: theme.surfaceHighlight }]}><Ionicons name="moon-outline" size={20} color={theme.accent} /></View>
-            <Text style={[styles.prefLabel, { color: theme.primary, flex: 1 }]}>Dark Mode</Text>
-            <Switch value={isDark} onValueChange={toggleTheme} trackColor={{ false: theme.border, true: theme.accent }} thumbColor={'#FFFFFF'} />
           </View>
         </View>
 

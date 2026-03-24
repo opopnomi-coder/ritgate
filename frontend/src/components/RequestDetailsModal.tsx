@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,8 @@ const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({
   qrCode,
   manualCode,
 }) => {
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
   if (!request) return null;
 
   const getStatusColor = (status: string) => {
@@ -152,13 +154,20 @@ const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({
             {!showQR && request.attachmentUri && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Attachment</Text>
-                <View style={styles.attachmentContainer}>
+                <TouchableOpacity 
+                  style={styles.attachmentContainer}
+                  onPress={() => setIsFullScreen(true)}
+                  activeOpacity={0.8}
+                >
                   <Image
                     source={{ uri: request.attachmentUri }}
                     style={styles.attachmentImage}
                     resizeMode="contain"
                   />
-                </View>
+                  <View style={styles.expandIconContainer}>
+                    <Ionicons name="expand-outline" size={24} color="#6B7280" />
+                  </View>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -214,6 +223,30 @@ const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({
           </ScrollView>
         </View>
       </View>
+
+      {/* Full Screen Image Modal */}
+      <Modal
+        visible={isFullScreen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsFullScreen(false)}
+      >
+        <View style={styles.fullScreenOverlay}>
+          <TouchableOpacity 
+            style={styles.fullScreenCloseButton}
+            onPress={() => setIsFullScreen(false)}
+          >
+            <Ionicons name="close" size={32} color="#FFFFFF" />
+          </TouchableOpacity>
+          {request?.attachmentUri && (
+             <Image
+                source={{ uri: request.attachmentUri }}
+                style={styles.fullScreenImage}
+                resizeMode="contain"
+             />
+          )}
+        </View>
+      </Modal>
     </Modal>
   );
 };
@@ -313,6 +346,36 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     borderRadius: 8,
+  },
+  expandIconContainer: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    padding: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  fullScreenOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenCloseButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '100%',
   },
   qrCodeContainer: {
     alignItems: 'center',

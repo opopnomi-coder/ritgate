@@ -35,6 +35,27 @@ interface ModernUnifiedLoginScreenProps {
 }
 
 const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onLoginSuccess, onBack }) => {
+  const extractLoginId = (rawScan: string): string => {
+    const raw = (rawScan || '').trim();
+    if (!raw) return '';
+    if (!raw.includes('/') && !raw.includes('|')) return raw;
+
+    const tokens = raw
+      .split(/[|/:\s,;]+/)
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    const preferred = tokens.find(token => {
+      const upper = token.toUpperCase();
+      if (/^\d{8,}$/.test(upper)) return true;
+      if (/^(SEC|HR|HOD)[A-Z0-9]+$/.test(upper)) return true;
+      if (/^[A-Z]{2,4}\d{2,}$/.test(upper)) return true;
+      return false;
+    });
+
+    return preferred || raw;
+  };
+
   const [userId, setUserId] = useState('');
   const [otp, setOtp] = useState('');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
@@ -136,8 +157,9 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
     setOtp('');
   };
 
-  const handleSendOTP = async () => {
-    if (!userId.trim()) {
+  const handleSendOTP = async (idOverride?: string) => {
+    const effectiveUserId = (idOverride ?? userId).trim();
+    if (!effectiveUserId) {
       showError(new AppError('validation', 'Please enter your ID', 'Missing ID'));
       return;
     }
@@ -145,12 +167,13 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
     setLoadingMessage('Connecting...');
     try {
       // For staff-pattern IDs, ask backend for the real role (HOD/HR/STAFF all look the same)
-      let role = detectUserRole(userId);
+      let role = detectUserRole(effectiveUserId);
       if (role === 'STAFF') {
-        role = await apiService.detectRole(userId.trim());
+        role = await apiService.detectRole(effectiveUserId);
       }
-      const response = await apiService.sendOTP(userId, role);
+      const response = await apiService.sendOTP(effectiveUserId, role);
       if (response.success) {
+        setUserId(effectiveUserId);
         setMaskedEmail(response.maskedEmail || response.email || 'm***@institution.edu');
         setDetectedRole(role);
         resolvedRoleRef.current = role; // persist for verifyOTP
@@ -202,9 +225,10 @@ const ModernUnifiedLoginScreen: React.FC<ModernUnifiedLoginScreenProps> = ({ onL
   };
 
   const handleQRScanSuccess = async (qrData: string) => {
+    const scannedId = extractLoginId(qrData);
     setShowQRScanner(false);
-    setUserId(qrData);
-    handleSendOTP();
+    setUserId(scannedId);
+    await handleSendOTP(scannedId);
   };
 
   if (showQRScanner) return <QRLoginScanner onScanSuccess={handleQRScanSuccess} onClose={() => setShowQRScanner(false)} />;

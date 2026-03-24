@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { API_CONFIG } from '../../config/api.config';
 import { useTheme } from '../../context/ThemeContext';
@@ -27,9 +28,10 @@ interface Notification {
 interface NotificationsScreenProps {
   userId: string;
   userType: 'student' | 'staff' | 'hod' | 'hr' | 'security';
+  onBack?: () => void;
 }
 
-export default function NotificationsScreen({ userId, userType }: NotificationsScreenProps) {
+export default function NotificationsScreen({ userId, userType, onBack }: NotificationsScreenProps) {
   const { theme } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +70,24 @@ export default function NotificationsScreen({ userId, userType }: NotificationsS
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifs = notifications.filter(n => !n.isRead);
+      for (const notif of unreadNotifs) {
+        await fetch(`${API_CONFIG.BASE_URL}/notifications/${notif.id}/read`, {
+          method: 'PUT',
+        });
+      }
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+
+  const clearAllNotifications = () => {
+    setNotifications([]);
   };
 
   useEffect(() => {
@@ -128,10 +148,25 @@ export default function NotificationsScreen({ userId, userType }: NotificationsS
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'left', 'right']}>
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity onPress={onBack} style={[styles.backButton, { backgroundColor: theme.inputBackground }]}>
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={markAllAsRead} style={styles.actionButton}>
+              <Ionicons name="checkmark-done-outline" size={20} color={theme.primary} />
+              <Text style={[styles.actionText, { color: theme.primary }]}>Mark Read</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={clearAllNotifications} style={styles.actionButton}>
+              <Ionicons name="trash-outline" size={20} color={theme.error} />
+              <Text style={[styles.actionText, { color: theme.error }]}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
         <Text style={[styles.headerTitle, { color: theme.text }]}>Notifications</Text>
-        <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>Latest 5 messages</Text>
+        <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>Latest messages</Text>
       </View>
 
       {notifications.length === 0 ? (
@@ -197,6 +232,11 @@ const styles = StyleSheet.create({
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 12, fontSize: 16 },
   header: { padding: 20, borderBottomWidth: 1 },
+  headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  backButton: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  headerActions: { flexDirection: 'row', gap: 12 },
+  actionButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: '#f3f4f6' },
+  actionText: { fontSize: 12, fontWeight: '600' },
   headerTitle: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
   headerSubtitle: { fontSize: 14 },
   listContainer: { padding: 16 },

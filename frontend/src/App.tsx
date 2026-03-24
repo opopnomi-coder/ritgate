@@ -26,6 +26,7 @@ import { ActionLockProvider, useActionLock } from './context/ActionLockContext';
 import HomeScreen from './screens/HomeScreen';
 import LoadingScreen from './screens/LoadingScreen';
 import ModernUnifiedLoginScreen from './screens/auth/ModernUnifiedLoginScreen';
+import BiometricGateScreen from './screens/auth/BiometricGateScreen';
 import StudentDashboardContainer from './screens/student/StudentDashboardContainer';
 import StaffDashboardContainer from './screens/staff/StaffDashboardContainer';
 import HODDashboardContainer from './screens/hod/HODDashboardContainer';
@@ -48,6 +49,7 @@ import NotificationsScreen from './screens/shared/NotificationsScreen';
 import SwipeBackWrapper from './components/SwipeBackWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import { initPushNotifications, unregisterPushToken, setupNotificationTapHandler, handleInitialNotification } from './services/pushNotification.service';
+import { biometricAuthService } from './services/biometricAuth.service';
 
 // Inner component that can access ThemeContext for transition animation
 const ThemedApp: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -88,6 +90,11 @@ const App: React.FC = () => {
   const [security, setSecurity] = React.useState<SecurityPersonnel | null>(null);
   const [currentScreen, setCurrentScreen] = React.useState<ScreenName>('HOME');
   const [userType, setUserType] = React.useState<UserType | null>(null);
+  const [requiresBiometricGate, setRequiresBiometricGate] = React.useState(false);
+  const [biometricVerified, setBiometricVerified] = React.useState(false);
+  const [biometricLoading, setBiometricLoading] = React.useState(false);
+  const [biometricMessage, setBiometricMessage] = React.useState('');
+  const [biometricPrompted, setBiometricPrompted] = React.useState(false);
 
   // Double-back-to-exit tracking
   const lastBackPress = useRef<number>(0);
@@ -146,6 +153,30 @@ const App: React.FC = () => {
     };
   }, []);
 
+  const runBiometricAuth = React.useCallback(async () => {
+    setBiometricLoading(true);
+    setBiometricMessage('');
+    try {
+      const result = await biometricAuthService.authenticate();
+      if (result.success) {
+        setBiometricVerified(true);
+      } else {
+        setBiometricMessage(result.error || 'Authentication failed');
+      }
+    } catch {
+      setBiometricMessage('Unable to authenticate. Please try again.');
+    } finally {
+      setBiometricLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (requiresBiometricGate && !biometricVerified && !biometricPrompted && !isLoading) {
+      setBiometricPrompted(true);
+      runBiometricAuth();
+    }
+  }, [requiresBiometricGate, biometricVerified, biometricPrompted, isLoading, runBiometricAuth]);
+
   const checkAuthStatus = async () => {
     console.log('🔍 Starting auth check...');
     try {
@@ -156,6 +187,9 @@ const App: React.FC = () => {
         setStudent(savedStudent);
         setUserType('STUDENT');
         setCurrentScreen('DASHBOARD');
+        const hasFlag = await biometricAuthService.hasSessionFlag();
+        setRequiresBiometricGate(hasFlag);
+        setBiometricVerified(!hasFlag);
         setIsLoading(false);
         initPushNotifications(savedStudent.regNo, 'student');
         return;
@@ -168,6 +202,9 @@ const App: React.FC = () => {
         setStaff(savedStaff);
         setUserType('STAFF');
         setCurrentScreen('STAFF_DASHBOARD');
+        const hasFlag = await biometricAuthService.hasSessionFlag();
+        setRequiresBiometricGate(hasFlag);
+        setBiometricVerified(!hasFlag);
         setIsLoading(false);
         initPushNotifications(savedStaff.staffCode, 'staff');
         return;
@@ -180,6 +217,9 @@ const App: React.FC = () => {
         setHod(savedHOD);
         setUserType('HOD');
         setCurrentScreen('HOD_DASHBOARD');
+        const hasFlag = await biometricAuthService.hasSessionFlag();
+        setRequiresBiometricGate(hasFlag);
+        setBiometricVerified(!hasFlag);
         setIsLoading(false);
         initPushNotifications(savedHOD.hodCode, 'hod');
         return;
@@ -192,6 +232,9 @@ const App: React.FC = () => {
         setHr(savedHR);
         setUserType('HR');
         setCurrentScreen('HR_DASHBOARD');
+        const hasFlag = await biometricAuthService.hasSessionFlag();
+        setRequiresBiometricGate(hasFlag);
+        setBiometricVerified(!hasFlag);
         setIsLoading(false);
         initPushNotifications(savedHR.hrCode, 'hr');
         return;
@@ -204,6 +247,9 @@ const App: React.FC = () => {
         setSecurity(savedSecurity);
         setUserType('SECURITY');
         setCurrentScreen('SECURITY_DASHBOARD');
+        const hasFlag = await biometricAuthService.hasSessionFlag();
+        setRequiresBiometricGate(hasFlag);
+        setBiometricVerified(!hasFlag);
         setIsLoading(false);
         return;
       }
@@ -211,6 +257,8 @@ const App: React.FC = () => {
       console.log('ℹ️ No saved user session found - showing home screen');
       setIsLoading(false);
       setCurrentScreen('HOME');
+      setRequiresBiometricGate(false);
+      setBiometricVerified(false);
     } catch (error) {
       console.error('❌ Error checking auth status:', error);
       setIsLoading(false);
@@ -243,6 +291,10 @@ const App: React.FC = () => {
     setStudent(studentData);
     setUserType('STUDENT');
     setCurrentScreen('DASHBOARD');
+    setRequiresBiometricGate(false);
+    setBiometricVerified(true);
+    setBiometricPrompted(false);
+    await biometricAuthService.markSessionActive();
     initPushNotifications(studentData.regNo, 'student');
   };
 
@@ -257,6 +309,10 @@ const App: React.FC = () => {
     setStaff(staffData);
     setUserType('STAFF');
     setCurrentScreen('STAFF_DASHBOARD');
+    setRequiresBiometricGate(false);
+    setBiometricVerified(true);
+    setBiometricPrompted(false);
+    await biometricAuthService.markSessionActive();
     initPushNotifications(staffData.staffCode, 'staff');
   };
 
@@ -271,6 +327,10 @@ const App: React.FC = () => {
     setHod(hodData);
     setUserType('HOD');
     setCurrentScreen('HOD_DASHBOARD');
+    setRequiresBiometricGate(false);
+    setBiometricVerified(true);
+    setBiometricPrompted(false);
+    await biometricAuthService.markSessionActive();
     initPushNotifications(hodData.hodCode, 'hod');
   };
 
@@ -285,6 +345,10 @@ const App: React.FC = () => {
     setHr(hrData);
     setUserType('HR');
     setCurrentScreen('HR_DASHBOARD');
+    setRequiresBiometricGate(false);
+    setBiometricVerified(true);
+    setBiometricPrompted(false);
+    await biometricAuthService.markSessionActive();
     initPushNotifications(hrData.hrCode, 'hr');
   };
 
@@ -299,6 +363,10 @@ const App: React.FC = () => {
     setSecurity(securityData);
     setUserType('SECURITY');
     setCurrentScreen('SECURITY_DASHBOARD');
+    setRequiresBiometricGate(false);
+    setBiometricVerified(true);
+    setBiometricPrompted(false);
+    await biometricAuthService.markSessionActive();
   };
 
   const handleLogout = async () => {
@@ -321,6 +389,10 @@ const App: React.FC = () => {
       setSecurity(null);
       setUserType(null);
       setCurrentScreen('HOME');
+      setRequiresBiometricGate(false);
+      setBiometricVerified(false);
+      setBiometricPrompted(false);
+      await biometricAuthService.clearSession();
       console.log('✅ Logout completed - all sessions cleared');
     } catch (error) {
       console.log('❌ Error during logout:', error);
@@ -402,6 +474,17 @@ const App: React.FC = () => {
         return <LoadingScreen />;
       }
 
+      if (requiresBiometricGate && !biometricVerified) {
+        return (
+          <BiometricGateScreen
+            loading={biometricLoading}
+            message={biometricMessage}
+            onRetry={runBiometricAuth}
+            onUseLogin={handleLogout}
+          />
+        );
+      }
+
       // Handle unified login screen
       if (currentScreen === 'UNIFIED_LOGIN') {
         console.log('🔐 Rendering ModernUnifiedLoginScreen');
@@ -476,6 +559,7 @@ const App: React.FC = () => {
               <NotificationsScreen
                 userId={student.regNo}
                 userType="student"
+                onBack={navigateBack}
               />
             );
           default:
@@ -567,6 +651,7 @@ const App: React.FC = () => {
               <NotificationsScreen
                 userId={staff.staffCode}
                 userType="staff"
+                onBack={navigateBack}
               />
             );
           default:
@@ -650,6 +735,7 @@ const App: React.FC = () => {
               <NotificationsScreen
                 userId={hod.hodCode}
                 userType="hod"
+                onBack={navigateBack}
               />
             );
           default:
@@ -687,6 +773,7 @@ const App: React.FC = () => {
               <NotificationsScreen
                 userId={hr.hrCode}
                 userType="hr"
+                onBack={navigateBack}
               />
             );
           default:

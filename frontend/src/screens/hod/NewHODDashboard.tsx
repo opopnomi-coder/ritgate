@@ -19,6 +19,7 @@ import { apiService } from '../../services/api';
 import { useNotifications } from '../../context/NotificationContext';
 import { useProfile } from '../../context/ProfileContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useActionLock } from '../../context/ActionLockContext';
 import PassTypeBottomSheet from '../../components/PassTypeBottomSheet';
 import NotificationDropdown from '../../components/NotificationDropdown';
 import BulkDetailsModal from '../../components/BulkDetailsModal';
@@ -62,6 +63,7 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { unreadCount, loadNotifications } = useNotifications();
   const { profileImage } = useProfile();
+  const { lock, unlock } = useActionLock();
 
   const [stats, setStats] = useState({
     pending: 0,
@@ -157,6 +159,7 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
     if (!targetId) return;
 
     setProcessing(true);
+    lock('Approving request...');
 
     try {
       const isVisitor = selectedRequest?.passType === 'VISITOR' || selectedRequest?.sourceType === 'VISITOR';
@@ -178,6 +181,7 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
     } finally {
+      unlock();
       setProcessing(false);
     }
   };
@@ -194,6 +198,7 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
     }
 
     setProcessing(true);
+    lock('Rejecting request...');
 
     try {
       const isVisitor = selectedRequest?.passType === 'VISITOR' || selectedRequest?.sourceType === 'VISITOR';
@@ -215,6 +220,7 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
     } finally {
+      unlock();
       setProcessing(false);
     }
   };
@@ -241,12 +247,9 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
           </View>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowNotificationDropdown(true)}>
+          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => onNavigate('NOTIFICATIONS')}>
             <Ionicons name="notifications-outline" size={24} color={theme.text} />
             {unreadCount > 0 && <View style={[styles.notificationIndicator, { backgroundColor: theme.success, borderColor: theme.surface }]} />}
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowLogoutModal(true)}>
-            <Ionicons name="log-out-outline" size={24} color={theme.error} />
           </TouchableOpacity>
         </View>
       </View>

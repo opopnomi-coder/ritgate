@@ -9,13 +9,16 @@ import {
   TextInput,
   StatusBar,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { HR, ScreenName } from '../../types';
 import { apiService } from '../../services/api';
 import { useNotifications } from '../../context/NotificationContext';
+import { useProfile } from '../../context/ProfileContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useActionLock } from '../../context/ActionLockContext';
 import { formatDateShort } from '../../utils/dateUtils';
 import NotificationDropdown from '../../components/NotificationDropdown';
 import BulkDetailsModal from '../../components/BulkDetailsModal';
@@ -54,6 +57,8 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
   const [modalMessage, setModalMessage] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { unreadCount, loadNotifications } = useNotifications();
+  const { profileImage } = useProfile();
+  const { lock, unlock } = useActionLock();
 
   const [stats, setStats] = useState({
     pending: 0,
@@ -162,6 +167,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
     const req = selectedRequest;
 
     setProcessing(true);
+    lock('Approving request...');
 
     try {
       if (req && req.requestType === 'VISITOR') {
@@ -183,6 +189,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
     } finally {
+      unlock();
       setProcessing(false);
     }
   };
@@ -194,6 +201,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
     const targetRemark = remark || 'Rejected by HR';
 
     setProcessing(true);
+    lock('Rejecting request...');
 
     try {
       if (req && req.requestType === 'VISITOR') {
@@ -215,6 +223,7 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
     } finally {
+      unlock();
       setProcessing(false);
     }
   };
@@ -227,9 +236,13 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
       <View style={[styles.header, { backgroundColor: theme.surface }]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={() => { setBottomTab('PROFILE'); onNavigate('PROFILE'); }}>
-            <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-              <Text style={styles.avatarText}>{getInitials(hr.name || 'HR')}</Text>
-            </View>
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.avatarImage} />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+                <Text style={styles.avatarText}>{getInitials(hr.name || 'HR')}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <View style={styles.headerInfo}>
             <Text style={[styles.greeting, { color: theme.textSecondary }]}>GOOD MORNING,</Text>
@@ -237,12 +250,9 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
           </View>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowNotificationDropdown(true)}>
+          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => onNavigate('NOTIFICATIONS')}>
             <Ionicons name="notifications-outline" size={24} color={theme.text} />
             {unreadCount > 0 && <View style={[styles.notificationIndicator, { backgroundColor: theme.success, borderColor: theme.surface }]} />}
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowLogoutModal(true)}>
-            <Ionicons name="log-out-outline" size={24} color={theme.error} />
           </TouchableOpacity>
         </View>
       </View>
@@ -501,6 +511,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  avatarImage: { width: 48, height: 48, borderRadius: 24 },
   avatarText: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
   headerInfo: { gap: 2 },
   greeting: { fontSize: 13 },

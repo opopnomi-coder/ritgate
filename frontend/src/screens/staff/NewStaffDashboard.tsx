@@ -19,6 +19,7 @@ import { apiService } from '../../services/api';
 import { useNotifications } from '../../context/NotificationContext';
 import { useProfile } from '../../context/ProfileContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useActionLock } from '../../context/ActionLockContext';
 import { getRelativeTime, formatDateShort } from '../../utils/dateUtils';
 import PassTypeBottomSheet from '../../components/PassTypeBottomSheet';
 import StaffRequestTimeline from '../../components/StaffRequestTimeline';
@@ -60,6 +61,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
   const [processing, setProcessing] = useState(false);
   const { unreadCount, loadNotifications } = useNotifications();
   const { profileImage } = useProfile();
+  const { lock, unlock } = useActionLock();
 
   const [stats, setStats] = useState({
     pending: 0,
@@ -207,6 +209,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
     if (!selectedRequest) return;
     const req = selectedRequest;
     setProcessing(true);
+    lock('Approving request...');
     try {
       if (req.requestType === 'VISITOR') {
         const visitorId = req.originalId || req.id.replace('VISITOR-', '');
@@ -225,6 +228,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
     } finally {
+      unlock();
       setProcessing(false);
     }
   };
@@ -233,6 +237,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
     if (!selectedRequest) return;
     const req = selectedRequest;
     setProcessing(true);
+    lock('Rejecting request...');
     try {
       if (req.requestType === 'VISITOR') {
         const visitorId = req.originalId || req.id.replace('VISITOR-', '');
@@ -251,6 +256,7 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
       setModalMessage(error.message || 'An error occurred.');
       setShowErrorModal(true);
     } finally {
+      unlock();
       setProcessing(false);
     }
   };
@@ -327,15 +333,12 @@ const NewStaffDashboard: React.FC<NewStaffDashboardProps> = ({
         <View style={styles.headerRight}>
           <TouchableOpacity 
             style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]}
-            onPress={() => setShowNotificationDropdown(true)}
+            onPress={() => onNavigate('NOTIFICATIONS')}
           >
             <Ionicons name="notifications-outline" size={24} color={theme.text} />
             {unreadCount > 0 && (
               <View style={[styles.notificationIndicator, { backgroundColor: theme.success, borderColor: theme.surface }]} />
             )}
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowLogoutModal(true)}>
-            <Ionicons name="log-out-outline" size={24} color={theme.error} />
           </TouchableOpacity>
         </View>
       </View>

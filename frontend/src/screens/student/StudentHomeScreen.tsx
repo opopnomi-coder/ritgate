@@ -10,7 +10,6 @@ import {
   Image,
   Modal,
   TextInput,
-  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -62,15 +61,6 @@ const StudentHomeScreen: React.FC<StudentHomeScreenProps> = ({
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const { errorInfo, showError, hideError, handleRetry, isVisible: isErrorVisible } = useErrorModal();
   const { successInfo, showSuccess, hideSuccess, isVisible: isSuccessVisible } = useSuccessModal();
-
-  useEffect(() => {
-    const onBackPress = () => {
-      setShowLogoutModal(true);
-      return true;
-    };
-    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => subscription.remove();
-  }, [onTabChange]); // Updated for consistency with other screens
 
   useEffect(() => {
     loadData();
@@ -209,7 +199,7 @@ const StudentHomeScreen: React.FC<StudentHomeScreenProps> = ({
         <View style={styles.headerRight}>
           <TouchableOpacity 
             style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]}
-            onPress={() => setShowNotificationDropdown(true)}
+            onPress={() => onNavigate('NOTIFICATIONS')}
           >
             <Ionicons name="notifications-outline" size={24} color={theme.text} />
             {unreadCount > 0 && (
@@ -217,9 +207,6 @@ const StudentHomeScreen: React.FC<StudentHomeScreenProps> = ({
                 <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
               </View>
             )}
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surfaceHighlight }]} onPress={() => setShowLogoutModal(true)}>
-            <Ionicons name="log-out-outline" size={24} color={theme.error} />
           </TouchableOpacity>
         </View>
       </View>

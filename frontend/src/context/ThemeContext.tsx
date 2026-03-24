@@ -328,22 +328,13 @@ export const ThemeProvider: React.FC<{ children: ReactNode; userId?: string }> =
     }
   };
 
-  // ── Smooth transition helper ──────────────────────────────────────────────
+  // Keep theme switching instant (no dim/blur effect).
   const runTransition = useCallback((action: () => void) => {
     setTransitioning(true);
-    Animated.timing(transitionOpacity, {
-      toValue: 0.3,
-      duration: 180,
-      useNativeDriver: true,
-    }).start(() => {
-      action();
-      Animated.timing(transitionOpacity, {
-        toValue: 1,
-        duration: 280,
-        useNativeDriver: true,
-      }).start(() => setTransitioning(false));
-    });
-  }, []);
+    action();
+    transitionOpacity.setValue(1);
+    setTransitioning(false);
+  }, [transitionOpacity]);
 
   // ── Toggle dark / light ───────────────────────────────────────────────────
   const toggleTheme = useCallback(() => {
