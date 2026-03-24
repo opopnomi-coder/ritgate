@@ -20,6 +20,7 @@ const ProfessionalVisitorForm: React.FC<ProfessionalVisitorFormProps> = ({ onBac
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   const [selectedDepartmentCode, setSelectedDepartmentCode] = useState<string>('');
   const [purpose, setPurpose] = useState<string>('');
+  const [role, setRole] = useState<'VISITOR' | 'VENDOR'>('VISITOR');
   const [vehicleNumber, setVehicleNumber] = useState<string>('');
   const [staffMembers, setStaffMembers] = useState<Staff[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<string>('');
@@ -37,11 +38,22 @@ const ProfessionalVisitorForm: React.FC<ProfessionalVisitorFormProps> = ({ onBac
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [registeredVisitor, setRegisteredVisitor] = useState<VisitorResponse | null>(null);
+  const [approvalStatus, setApprovalStatus] = useState<'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
+  const [approvedQrCode, setApprovedQrCode] = useState<string>('');
+  const [approvedManualCode, setApprovedManualCode] = useState<string>('');
   const [error, setError] = useState<string>('');
   
   const [focusedField, setFocusedField] = useState<string>('');
   const [hoveredCard, setHoveredCard] = useState<string>('');
   const [hoveredBack, setHoveredBack] = useState<boolean>(false);
+  const [machineId] = useState<string>(() => {
+    const key = 'ritgate_machine_id';
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+    const created = `WEB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    localStorage.setItem(key, created);
+    return created;
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -198,6 +210,8 @@ const ProfessionalVisitorForm: React.FC<ProfessionalVisitorFormProps> = ({ onBac
           name: visitorNames[0],
           email: mainPersonEmail,
           phone: mainPersonPhone,
+          role,
+          machineId,
           department: selectedDepartment,
           staffCode: selectedStaffId,
           purpose: purpose,
@@ -213,6 +227,7 @@ const ProfessionalVisitorForm: React.FC<ProfessionalVisitorFormProps> = ({ onBac
 
       const visitor = await response.json();
       setRegisteredVisitor(visitor);
+      setApprovalStatus('PENDING');
       setShowSuccess(true);
       
       setNumberOfVisitors(1);
@@ -221,6 +236,7 @@ const ProfessionalVisitorForm: React.FC<ProfessionalVisitorFormProps> = ({ onBac
       setMainPersonPhone('');
       setSelectedDepartment('');
       setPurpose('');
+      setRole('VISITOR');
       setVehicleNumber('');
       setStaffMembers([]);
       setSelectedStaff('');
@@ -235,7 +251,40 @@ const ProfessionalVisitorForm: React.FC<ProfessionalVisitorFormProps> = ({ onBac
   const handleNewRegistration = () => {
     setShowSuccess(false);
     setRegisteredVisitor(null);
+    setApprovalStatus('PENDING');
+    setApprovedQrCode('');
+    setApprovedManualCode('');
   };
+
+  useEffect(() => {
+    if (!showSuccess || !registeredVisitor?.id) return;
+    if (approvalStatus === 'APPROVED' || approvalStatus === 'REJECTED') return;
+
+    const apiBase = process.env.REACT_APP_API_URL || 'https://ritgate-backend.onrender.com/api';
+    const interval = setInterval(async () => {
+      try {
+        const resp = await fetch(
+          `${apiBase}/unified-visitors/status/${registeredVisitor.id}?machineId=${encodeURIComponent(machineId)}`
+        );
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data?.success && data?.status) {
+          const status = String(data.status).toUpperCase();
+          if (status === 'APPROVED') {
+            setApprovalStatus('APPROVED');
+            setApprovedQrCode(data.qrCode || '');
+            setApprovedManualCode(data.manualCode || '');
+          } else if (status === 'REJECTED') {
+            setApprovalStatus('REJECTED');
+          } else {
+            setApprovalStatus('PENDING');
+          }
+        }
+      } catch (_) {}
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [showSuccess, registeredVisitor?.id, machineId, approvalStatus]);
 
   // Styles
   const styles = {
@@ -546,18 +595,42 @@ const ProfessionalVisitorForm: React.FC<ProfessionalVisitorFormProps> = ({ onBac
                 Your visit request has been sent to {registeredVisitor.personToMeet} for approval.
               </p>
               
-              <div style={styles.pendingCard}>
-                <div style={styles.pendingIcon}>⏳</div>
-                <h3 style={{ fontSize: '22px', fontWeight: '700', color: '#92400e', marginBottom: '12px' }}>
-                  Awaiting Approval
-                </h3>
-                <p style={{ fontSize: '15px', color: '#78350f', marginBottom: '8px' }}>
-                  You will receive an email with your visitor QR code once approved.
-                </p>
-                <p style={{ fontSize: '15px', color: '#78350f' }}>
-                  Check: <strong>{registeredVisitor.email}</strong>
-                </p>
-              </div>
+              {approvalStatus === 'PENDING' && (
+                <div style={styles.pendingCard}>
+                  <div style={styles.pendingIcon}>⏳</div>
+                  <h3 style={{ fontSize: '22px', fontWeight: '700', color: '#92400e', marginBottom: '12px' }}>
+                    Awaiting Approval
+                  </h3>
+                  <p style={{ fontSize: '15px', color: '#78350f', marginBottom: '8px' }}>
+                    This page auto-refreshes and will show your QR + manual code here once approved.
+                  </p>
+                </div>
+              )}
+              {approvalStatus === 'APPROVED' && (
+                <div style={{ ...styles.pendingCard, background: 'linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%)', borderColor: '#16A34A' }}>
+                  <div style={styles.pendingIcon}>✅</div>
+                  <h3 style={{ fontSize: '22px', fontWeight: '700', color: '#166534', marginBottom: '12px' }}>
+                    Approved - Your Pass Is Ready
+                  </h3>
+                  <p style={{ fontSize: '14px', color: '#166534', marginBottom: '8px', wordBreak: 'break-all' }}>
+                    <strong>QR:</strong> {approvedQrCode || 'N/A'}
+                  </p>
+                  <p style={{ fontSize: '18px', color: '#14532d', fontWeight: 800, letterSpacing: '2px' }}>
+                    Manual Code: {approvedManualCode || 'N/A'}
+                  </p>
+                </div>
+              )}
+              {approvalStatus === 'REJECTED' && (
+                <div style={{ ...styles.pendingCard, background: 'linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%)', borderColor: '#EF4444' }}>
+                  <div style={styles.pendingIcon}>✗</div>
+                  <h3 style={{ fontSize: '22px', fontWeight: '700', color: '#991B1B', marginBottom: '12px' }}>
+                    Request Rejected
+                  </h3>
+                  <p style={{ fontSize: '15px', color: '#991B1B' }}>
+                    Your request was rejected by the faculty. Please contact reception for help.
+                  </p>
+                </div>
+              )}
               
               <div style={styles.detailsCard}>
                 <div style={styles.detailRow}>
@@ -709,6 +782,21 @@ const ProfessionalVisitorForm: React.FC<ProfessionalVisitorFormProps> = ({ onBac
                 style={styles.input(focusedField === 'phone', false)}
                 required
               />
+            </div>
+
+            {/* Department */}
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>Role</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as 'VISITOR' | 'VENDOR')}
+                style={styles.input(focusedField === 'role', false)}
+                onFocus={() => setFocusedField('role')}
+                onBlur={() => setFocusedField('')}
+              >
+                <option value="VISITOR">Visitor</option>
+                <option value="VENDOR">Vendor</option>
+              </select>
             </div>
 
             {/* Department */}

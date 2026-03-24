@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Unified Visitor Controller - Persists visitor requests in Visitor table.
@@ -40,7 +41,10 @@ public class UnifiedVisitorController {
             visitor.setPurpose(request.getPurpose() != null ? request.getPurpose() : request.getReason());
             visitor.setNumberOfPeople(request.getNumberOfPeople() != null ? request.getNumberOfPeople() : 1);
             visitor.setVehicleNumber(request.getVehicleNumber());
-            visitor.setRegisteredBy("WEBSITE");
+            String visitorRole = request.getRole() != null && !request.getRole().isBlank() ? request.getRole().toUpperCase() : "VISITOR";
+            visitor.setRole(visitorRole);
+            visitor.setType(visitorRole);
+            visitor.setRegisteredBy(request.getMachineId() != null && !request.getMachineId().isBlank() ? request.getMachineId() : "WEBSITE");
             
             VisitorRegistrationResponse response = new VisitorRegistrationResponse();
             Visitor saved = visitorGatepassService.createRequest(visitor);
@@ -80,6 +84,9 @@ public class UnifiedVisitorController {
             visitor.setPurpose(request.getPurpose());
             visitor.setNumberOfPeople(request.getNumberOfPeople() != null ? request.getNumberOfPeople() : 1);
             visitor.setVehicleNumber(request.getVehicleNumber());
+            String visitorRole = request.getRole() != null && !request.getRole().isBlank() ? request.getRole().toUpperCase() : "VISITOR";
+            visitor.setRole(visitorRole);
+            visitor.setType(visitorRole);
             visitor.setRegisteredBy(request.getSecurityId());
             
             VisitorRegistrationResponse response = new VisitorRegistrationResponse();
@@ -195,6 +202,37 @@ public class UnifiedVisitorController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    /**
+     * Get status of a website-origin request bound to the machine that created it.
+     * GET /api/unified-visitors/status/{id}?machineId=WEB-...
+     */
+    @GetMapping("/status/{id}")
+    public ResponseEntity<?> getWebsiteRequestStatus(
+            @PathVariable Long id,
+            @RequestParam String machineId) {
+        try {
+            return visitorGatepassService.getRequestForMachine(id, machineId)
+                .map(v -> ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "requestId", v.getId(),
+                    "status", v.getStatus(),
+                    "qrCode", v.getQrCode(),
+                    "manualCode", v.getManualCode(),
+                    "name", v.getName(),
+                    "role", v.getRole() != null ? v.getRole() : "VISITOR"
+                )))
+                .orElse(ResponseEntity.status(404).body(Map.of(
+                    "success", false,
+                    "message", "Request not found for this machine"
+                )));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", e.getMessage()
+            ));
+        }
+    }
     
     // Helper method to convert Visitor to DTO
     private VisitorRequestDTO convertToDTO(Visitor visitor) {
@@ -207,6 +245,7 @@ public class UnifiedVisitorController {
         dto.setPurpose(visitor.getPurpose());
         dto.setDepartment(visitor.getDepartment());
         dto.setPersonToMeet(visitor.getPersonToMeet());
+        dto.setRole(visitor.getRole() != null ? visitor.getRole() : "VISITOR");
         dto.setStatus(visitor.getStatus());
         dto.setCreatedAt(visitor.getCreatedAt());
         dto.setApprovedAt(visitor.getApprovedAt());
@@ -238,6 +277,8 @@ public class UnifiedVisitorController {
         private String vehicleNumber;
         private String personToMeet;
         private String staffCode;
+        private String role;
+        private String machineId;
         
         // Getters and Setters
         public String getName() { return name; }
@@ -269,6 +310,12 @@ public class UnifiedVisitorController {
         
         public String getStaffCode() { return staffCode; }
         public void setStaffCode(String staffCode) { this.staffCode = staffCode; }
+
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
+
+        public String getMachineId() { return machineId; }
+        public void setMachineId(String machineId) { this.machineId = machineId; }
     }
     
     public static class SecurityVisitorRegistrationRequest {
@@ -281,6 +328,7 @@ public class UnifiedVisitorController {
         private String purpose;
         private Integer numberOfPeople;
         private String vehicleNumber;
+        private String role;
         
         // Getters and Setters
         public String getSecurityId() { return securityId; }
@@ -309,6 +357,9 @@ public class UnifiedVisitorController {
         
         public String getVehicleNumber() { return vehicleNumber; }
         public void setVehicleNumber(String vehicleNumber) { this.vehicleNumber = vehicleNumber; }
+
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
     }
     
     public static class VisitorRegistrationResponse {
@@ -352,6 +403,7 @@ public class UnifiedVisitorController {
         private String purpose;
         private String department;
         private String personToMeet;
+        private String role;
         private String status;
         private LocalDateTime createdAt;
         private LocalDateTime approvedAt;
@@ -382,6 +434,9 @@ public class UnifiedVisitorController {
         
         public String getPersonToMeet() { return personToMeet; }
         public void setPersonToMeet(String personToMeet) { this.personToMeet = personToMeet; }
+
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
         
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }

@@ -35,6 +35,19 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [selectedBulkId, setSelectedBulkId] = useState<number | null>(null);
 
+  const getRequestDate = (request: any) =>
+    request.passType === 'BULK'
+      ? (request.exitDateTime || request.createdAt || request.requestDate)
+      : (request.requestDate || request.createdAt);
+  const isToday = (dateValue?: string) => {
+    if (!dateValue) return false;
+    const d = new Date(dateValue);
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  };
+  const isUsedRequest = (request: any) =>
+    request.qrUsed === true || request.status === 'USED' || request.status === 'EXITED';
+
   const fetchRequests = async () => {
     try {
       const result = await apiService.getHODMyGatePassRequests(user.hodCode);
@@ -44,19 +57,11 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
         combined = result.requests;
       }
 
-      // Sort by approval status first (APPROVED first), then by date
-      combined.sort((a, b) => {
-        // Priority 1: APPROVED requests first
-        if (a.status === 'APPROVED' && b.status !== 'APPROVED') return -1;
-        if (a.status !== 'APPROVED' && b.status === 'APPROVED') return 1;
-        
-        // Priority 2: Within same status, sort by date (newest first)
-        const dateA = new Date(a.passType === 'BULK' ? a.exitDateTime : a.requestDate).getTime();
-        const dateB = new Date(b.passType === 'BULK' ? b.exitDateTime : b.requestDate).getTime();
-        return dateB - dateA;
-      });
-      
-      setAllRequests(combined);
+      const todayOnly = combined
+        .filter((request) => isToday(getRequestDate(request)))
+        .filter((request) => !isUsedRequest(request))
+        .sort((a, b) => new Date(getRequestDate(b)).getTime() - new Date(getRequestDate(a)).getTime());
+      setAllRequests(todayOnly);
     } catch (error) {
       console.error('Error fetching requests:', error);
     } finally {
@@ -67,6 +72,13 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
 
   useEffect(() => {
     fetchRequests();
+  }, []);
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timer = setTimeout(() => fetchRequests(), nextMidnight.getTime() - now.getTime() + 500);
+    return () => clearTimeout(timer);
   }, []);
 
   const onRefresh = useCallback(() => {
@@ -146,7 +158,7 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
     const isBulk = request.passType === 'BULK';
     const name = user.hodName || user.name || 'HOD';
     const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-    const dateStr = isBulk ? request.exitDateTime : request.requestDate;
+    const dateStr = getRequestDate(request);
 
     return (
       <TouchableOpacity
@@ -249,6 +261,7 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
         }
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.requestsContainer}>
         {allRequests.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={64} color="#9CA3AF" />
@@ -264,6 +277,7 @@ const HODMyRequestsScreen: React.FC<HODMyRequestsScreenProps> = ({ user, onBack 
             </View>
           ))
         )}
+        </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -403,6 +417,13 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 20,
     backgroundColor: '#F9FAFB',
+  },
+  requestsContainer: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+    padding: 12,
   },
   emptyState: {
     paddingVertical: 80,

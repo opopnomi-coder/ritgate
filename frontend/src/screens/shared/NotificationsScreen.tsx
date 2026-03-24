@@ -223,7 +223,7 @@ export default function NotificationsScreen({ userId, userType, onBack }: Notifi
           }
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -11,6 +11,7 @@ import {
   Modal,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,8 @@ import { SecurityPersonnel, ScreenName } from '../../types';
 import { apiService } from '../../services/api';
 import SecurityBottomNav from '../../components/SecurityBottomNav';
 import { formatDateTime } from '../../utils/dateUtils';
+import { exportStyledPdfReport } from '../../utils/pdfReport';
+import { Calendar } from 'react-native-calendars';
 
 interface ModernScanHistoryScreenProps {
   security: SecurityPersonnel;
@@ -66,6 +69,12 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [rangeModalVisible, setRangeModalVisible] = useState(false);
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const [rangeMode, setRangeMode] = useState(false);
+  const [rangeResultsVisible, setRangeResultsVisible] = useState(false);
+  const [selectingDateType, setSelectingDateType] = useState<'FROM' | 'TO'>('FROM');
 
   useEffect(() => {
     if (activeTab === 'SCANS') {
@@ -135,6 +144,22 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
   });
 
   const filteredScans = scans.filter(scan => {
+    const inRange = (() => {
+      const eventDate = new Date(scan.outTime || scan.inTime || scan.entryTime || scan.exitTime || '');
+      if (!rangeMode) {
+        const now = new Date();
+        return eventDate.getFullYear() === now.getFullYear()
+          && eventDate.getMonth() === now.getMonth()
+          && eventDate.getDate() === now.getDate();
+      }
+      if (!fromDate && !toDate) return true;
+      const from = fromDate ? new Date(fromDate) : new Date('1970-01-01T00:00:00');
+      from.setHours(0, 0, 0, 0);
+      const to = toDate ? new Date(toDate) : new Date('2999-12-31T23:59:59');
+      to.setHours(23, 59, 59, 999);
+      return eventDate >= from && eventDate <= to;
+    })();
+
     const matchesSearch = searchQuery === '' ||
       scan.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       scan.type?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -147,8 +172,44 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
       matchesFilter = scan.status === 'EXITED' || !!scan.outTime;
     }
 
-    return matchesSearch && matchesFilter;
+    return inRange && matchesSearch && matchesFilter;
   });
+
+  const exportScanPdf = async () => {
+    const savedPath = await exportStyledPdfReport({
+      title: 'Security Scan History Report',
+      subtitle: rangeMode
+        ? `From ${fromDate ? fromDate.toLocaleDateString() : '-'} To ${toDate ? toDate.toLocaleDateString() : '-'}`
+        : 'Today',
+      columns: [
+        { key: 'name', label: 'NAME' },
+        { key: 'type', label: 'TYPE' },
+        { key: 'purpose', label: 'PURPOSE' },
+        { key: 'status', label: 'STATUS' },
+        { key: 'time', label: 'TIME' },
+      ],
+      rows: filteredScans.map((scan) => ({
+        name: scan.name,
+        type: scan.type,
+        purpose: scan.purpose || scan.reason || '-',
+        status: scan.status,
+        time: formatTime(scan.outTime || scan.inTime),
+      })),
+    });
+    if (savedPath) {
+      Alert.alert('PDF Downloaded', `Saved to device storage:\n${savedPath}`);
+    }
+  };
+
+  const applyDateRange = () => {
+    if (!fromDate || !toDate) return;
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    if (from > to) return;
+    setRangeMode(true);
+    setRangeModalVisible(false);
+    setRangeResultsVisible(true);
+  };
 
   const getInitials = (name: string) => {
     if (!name) return 'NA';
@@ -239,6 +300,13 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
 
       {/* Filter Tabs - Only for Scan History */}
       {activeTab === 'SCANS' && (
+        <>
+        <View style={styles.rangeActionsRow}>
+          <TouchableOpacity style={styles.rangeActionBtn} onPress={() => setRangeModalVisible(true)}>
+            <Ionicons name="calendar-outline" size={16} color="#00BCD4" />
+            <Text style={styles.rangeActionText}>From / To</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.filterContainer}>
           <TouchableOpacity
             style={[styles.filterTab, activeFilter === 'ALL' && styles.filterTabActive]}
@@ -265,6 +333,7 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
             </Text>
           </TouchableOpacity>
         </View>
+        </>
       )}
 
       {/* Content - Scan List or Vehicle List */}
@@ -679,6 +748,117 @@ const ModernScanHistoryScreen: React.FC<ModernScanHistoryScreenProps> = ({
 
       {/* Bottom Navigation */}
       <SecurityBottomNav activeTab="history" onNavigate={onNavigate} />
+
+      <Modal visible={rangeModalVisible} transparent animationType="fade" onRequestClose={() => setRangeModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.rangeModalCard}>
+            <Text style={[styles.modalTitle, { textAlign: 'center', width: '100%' }]}>Scan History Date Range</Text>
+            <View style={styles.dateTypeTabs}>
+              <TouchableOpacity
+                style={[styles.dateTypeTab, selectingDateType === 'FROM' && styles.dateTypeTabActive]}
+                onPress={() => setSelectingDateType('FROM')}
+              >
+                <Text style={[styles.dateTypeTabText, selectingDateType === 'FROM' && styles.dateTypeTabTextActive]}>From</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dateTypeTab, selectingDateType === 'TO' && styles.dateTypeTabActive]}
+                onPress={() => setSelectingDateType('TO')}
+              >
+                <Text style={[styles.dateTypeTabText, selectingDateType === 'TO' && styles.dateTypeTabTextActive]}>To</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.dateInputButton} onPress={() => setSelectingDateType('FROM')}>
+              <Ionicons name="calendar-outline" size={18} color="#00BCD4" />
+              <Text style={styles.dateInputText}>
+                {fromDate ? fromDate.toLocaleDateString() : 'Select From Date'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dateInputButton} onPress={() => setSelectingDateType('TO')}>
+              <Ionicons name="calendar-outline" size={18} color="#00BCD4" />
+              <Text style={styles.dateInputText}>
+                {toDate ? toDate.toLocaleDateString() : 'Select To Date'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.calendarWrap}>
+              <Calendar
+                onDayPress={(day) => {
+                  const selected = new Date(`${day.dateString}T00:00:00`);
+                  if (selectingDateType === 'FROM') setFromDate(selected);
+                  else setToDate(selected);
+                }}
+                markedDates={{
+                  ...(fromDate ? { [fromDate.toISOString().slice(0, 10)]: { selected: true, selectedColor: '#00BCD4' } } : {}),
+                  ...(toDate ? { [toDate.toISOString().slice(0, 10)]: { selected: true, selectedColor: '#0EA5E9' } } : {}),
+                }}
+                theme={{
+                  selectedDayBackgroundColor: '#00BCD4',
+                  todayTextColor: '#00BCD4',
+                  arrowColor: '#00BCD4',
+                }}
+              />
+            </View>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={() => setRangeModalVisible(false)}>
+                <Text style={styles.actionBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.actionBtn, styles.applyBtn]} onPress={applyDateRange}>
+                <Text style={styles.actionBtnText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={rangeResultsVisible} animationType="slide" transparent={false} onRequestClose={() => setRangeResultsVisible(false)}>
+        <SafeAreaView style={styles.fsScreen} edges={['top', 'bottom']}>
+          <View style={styles.fsHeader}>
+            <TouchableOpacity style={styles.fsBackBtn} onPress={() => setRangeResultsVisible(false)}>
+              <Ionicons name="arrow-back" size={22} color="#1F2937" />
+            </TouchableOpacity>
+            <Text style={styles.fsHeaderTitle}>Date Range Results</Text>
+            <View style={styles.fsStatusPill}>
+              <Text style={styles.fsStatusPillText}>{filteredScans.length}</Text>
+            </View>
+          </View>
+          <View style={styles.rangeResultsTop}>
+            <Text style={styles.rangeResultsSub}>
+              {fromDate?.toLocaleDateString()} - {toDate?.toLocaleDateString()}
+            </Text>
+            <TouchableOpacity style={styles.rangeResultsDownloadBtn} onPress={exportScanPdf}>
+              <Ionicons name="download-outline" size={16} color="#fff" />
+              <Text style={styles.rangeResultsDownloadText}>Download PDF</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
+            <View style={styles.scrollContent}>
+              {filteredScans.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="time-outline" size={64} color="#D1D5DB" />
+                  <Text style={styles.emptyText}>No scan records in selected range</Text>
+                </View>
+              ) : (
+                filteredScans.map((scan, index) => (
+                  <View key={`range-${scan.id}-${index}`} style={styles.scanCard}>
+                    <View style={styles.scanAvatar}>
+                      <Text style={styles.scanAvatarText}>{scan.isBulkPass ? 'GP' : getInitials(scan.name)}</Text>
+                    </View>
+                    <View style={styles.scanInfo}>
+                      <Text style={styles.scanName}>{scan.name}</Text>
+                      <Text style={styles.scanType}>{scan.type}</Text>
+                      <Text style={styles.scanPurpose} numberOfLines={1}>{scan.purpose}</Text>
+                    </View>
+                    <View style={styles.scanRight}>
+                      <Text style={styles.scanTime}>{formatTime(scan.outTime || scan.inTime)}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -933,6 +1113,147 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  rangeActionsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 12,
+  },
+  rangeActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingVertical: 10,
+  },
+  rangeActionText: {
+    color: '#00BCD4',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  rangeModalCard: {
+    width: '88%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    alignItems: 'center',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  actionBtn: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cancelBtn: {
+    backgroundColor: '#9CA3AF',
+  },
+  applyBtn: {
+    backgroundColor: '#00BCD4',
+  },
+  actionBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  dateInputButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 10,
+    width: '100%',
+  },
+  dateInputText: {
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  dateTypeTabs: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 10,
+    width: '100%',
+  },
+  dateTypeTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  dateTypeTabActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  dateTypeTabText: {
+    color: '#6B7280',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  dateTypeTabTextActive: {
+    color: '#00BCD4',
+    fontWeight: '700',
+  },
+  calendarWrap: {
+    width: '100%',
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  rangeResultsTop: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  rangeResultsSub: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  rangeResultsDownloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#00BCD4',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  rangeResultsDownloadText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12,
   },
   modalContent: {
     flex: 1,

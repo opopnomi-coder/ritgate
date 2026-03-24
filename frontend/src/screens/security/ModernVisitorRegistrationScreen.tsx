@@ -40,6 +40,7 @@ const ModernVisitorRegistrationScreen: React.FC<ModernVisitorRegistrationScreenP
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedStaff, setSelectedStaff] = useState('');
   const [purpose, setPurpose] = useState('');
+  const [role, setRole] = useState<'VISITOR' | 'VENDOR'>('VISITOR');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
@@ -130,6 +131,7 @@ const ModernVisitorRegistrationScreen: React.FC<ModernVisitorRegistrationScreenP
         name: visitorNames[0],
         phone: visitorPhone,
         email: visitorEmail,
+        role,
         numberOfPeople: parseInt(numberOfVisitors) || 1,
         departmentId: selectedDepartment,
         staffCode: selectedStaff,
@@ -163,6 +165,7 @@ const ModernVisitorRegistrationScreen: React.FC<ModernVisitorRegistrationScreenP
     setSelectedDepartment('');
     setSelectedStaff('');
     setPurpose('');
+    setRole('VISITOR');
   };
 
   const updateVisitorName = (index: number, value: string) => {
@@ -274,6 +277,21 @@ const ModernVisitorRegistrationScreen: React.FC<ModernVisitorRegistrationScreenP
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Visit Details</Text>
           
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Role *</Text>
+            <View style={styles.pickerContainer}>
+              <Ionicons name="person-outline" size={20} color="#9CA3AF" style={styles.pickerIcon} />
+              <Picker
+                selectedValue={role}
+                onValueChange={(value) => setRole(value)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Visitor" value="VISITOR" />
+                <Picker.Item label="Vendor" value="VENDOR" />
+              </Picker>
+            </View>
+          </View>
+
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Department *</Text>
             <View style={styles.pickerContainer}>

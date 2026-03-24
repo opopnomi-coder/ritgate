@@ -24,6 +24,9 @@ public class Visitor {
     
     @Column(nullable = true)
     private String type;
+
+    @Column(nullable = true, name = "role")
+    private String role;
     
     @Column(nullable = false, name = "department")
     private String department;
@@ -104,6 +107,7 @@ public class Visitor {
         this.createdAt = LocalDateTime.now();
         this.status = "PENDING";
         this.scanCount = 0;
+        this.role = "VISITOR";
     }
     
     public Visitor(String qrCode, String name, String email, String phone, String department, 
@@ -137,6 +141,9 @@ public class Visitor {
     
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
     
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }

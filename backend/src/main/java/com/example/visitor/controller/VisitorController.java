@@ -52,6 +52,9 @@ public class VisitorController {
             visitor.setPurpose(request.getPurpose());
             visitor.setPersonToMeet(request.getPersonToMeet());
             visitor.setNumberOfPeople(request.getNumberOfPeople() != null ? request.getNumberOfPeople() : 1);
+            String visitorRole = request.getRole() != null && !request.getRole().isBlank() ? request.getRole().toUpperCase() : "VISITOR";
+            visitor.setRole(visitorRole);
+            visitor.setType(visitorRole);
             
             if (request.getVehicleNumber() != null && !request.getVehicleNumber().isEmpty()) {
                 visitor.setVehicleNumber(request.getVehicleNumber());
@@ -424,6 +427,7 @@ public class VisitorController {
         dto.setPurpose(visitor.getPurpose());
         dto.setDepartment(visitor.getDepartment());
         dto.setPersonToMeet(visitor.getPersonToMeet());
+        dto.setRole(visitor.getRole() != null ? visitor.getRole() : "VISITOR");
         dto.setStatus(visitor.getStatus());
         dto.setVisitDate(visitor.getVisitDate() != null ? visitor.getVisitDate().toString() : null);
         dto.setVisitTime(visitor.getVisitTime() != null ? visitor.getVisitTime().toString() : null);
@@ -447,6 +451,7 @@ public class VisitorController {
         private String staffCode;  // NEW: Staff code for routing
         private String visitDate;  // NEW: Visit date (YYYY-MM-DD)
         private String visitTime;  // NEW: Visit time (HH:MM)
+        private String role;
         
         // Getters and Setters
         public String getName() { return name; }
@@ -481,6 +486,9 @@ public class VisitorController {
         
         public String getVisitTime() { return visitTime; }
         public void setVisitTime(String visitTime) { this.visitTime = visitTime; }
+
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
     }
     
     // Response class for registration
@@ -526,6 +534,7 @@ public class VisitorController {
         private String purpose;
         private String department;
         private String personToMeet;
+        private String role;
         private String status;
         private String visitDate;
         private String visitTime;
@@ -558,6 +567,9 @@ public class VisitorController {
         
         public String getPersonToMeet() { return personToMeet; }
         public void setPersonToMeet(String personToMeet) { this.personToMeet = personToMeet; }
+
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
         
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }

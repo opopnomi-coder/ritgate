@@ -206,6 +206,7 @@ export interface VisitorData {
   name: string;
   phone: string;
   email: string;
+  role?: 'VISITOR' | 'VENDOR';
   department: string;
   personToMeet: string;
   purpose: string;

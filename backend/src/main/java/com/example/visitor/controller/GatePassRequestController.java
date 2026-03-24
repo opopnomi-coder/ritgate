@@ -254,6 +254,7 @@ public class GatePassRequestController {
                 item.put("visitorEmail", v.getEmail());
                 item.put("visitorPhone", v.getPhone());
                 item.put("department", v.getDepartment());
+                item.put("role", v.getRole() != null ? v.getRole() : "VISITOR");
                 item.put("purpose", v.getPurpose());
                 item.put("numberOfPeople", v.getNumberOfPeople());
                 item.put("vehicleNumber", v.getVehicleNumber());

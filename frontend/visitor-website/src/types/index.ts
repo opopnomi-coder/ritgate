@@ -18,7 +18,8 @@ export interface VisitorRegistration {
   name: string;
   email: string;
   phone: string;
-  type: 'VISITOR';
+  type: 'VISITOR' | 'VENDOR';
+  role?: 'VISITOR' | 'VENDOR';
   department?: string;
   purpose: string;
   numberOfPeople?: number;

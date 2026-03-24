@@ -13,4 +13,5 @@ public interface VisitorRepository extends JpaRepository<Visitor, Long> {
     Optional<Visitor> findByManualCode(String manualCode);
     List<Visitor> findByStaffCode(String staffCode);
     List<Visitor> findByStaffCodeAndStatus(String staffCode, String status);
+    List<Visitor> findByRegisteredByOrderByCreatedAtDesc(String registeredBy);
 }

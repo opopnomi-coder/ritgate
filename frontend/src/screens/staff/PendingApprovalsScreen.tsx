@@ -210,7 +210,11 @@ const PendingApprovalsScreen: React.FC<PendingApprovalsScreenProps> = ({ user, n
                       {request.passType === 'BULK' ? (request.requestedByStaffName || 'Bulk Request') : request.passType === 'VISITOR' ? (request.visitorName || 'Visitor') : request.regNo}
                     </Text>
                     <Text style={[styles.passTypeLabel, { color: theme.textSecondary }]}>
-                      {request.passType === 'BULK' ? '(Bulk Gatepass)' : request.passType === 'VISITOR' ? '(Visitor Request)' : '(Single Gatepass)'}
+                      {request.passType === 'BULK'
+                        ? '(Bulk Gatepass)'
+                        : request.passType === 'VISITOR'
+                        ? `(${(request.role || 'VISITOR').toUpperCase()} Request)`
+                        : '(Single Gatepass)'}
                     </Text>
                   </View>
                   <Text style={[styles.studentIdSub, { color: theme.textSecondary }]}>

@@ -240,6 +240,32 @@ public class NotificationService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void notifyStaffOfHRApproval(GatePassRequest request) {
+        try {
+            save(request.getRegNo(),
+                "Gate Pass Approved!",
+                "Your Gate Pass Request has been approved by HR. Your QR pass is ready.",
+                Notification.NotificationType.APPROVAL, Notification.NotificationPriority.URGENT,
+                "/staff/my-requests");
+        } catch (Exception e) {
+            log.error("Error notifying staff of HR approval", e);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void notifyStaffOfHRRejection(GatePassRequest request) {
+        try {
+            save(request.getRegNo(),
+                "Request Rejected",
+                "Your Gate Pass Request was rejected by HR. Please check remarks.",
+                Notification.NotificationType.REJECTION, Notification.NotificationPriority.HIGH,
+                "/staff/my-requests");
+        } catch (Exception e) {
+            log.error("Error notifying staff of HR rejection", e);
+        }
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void notifyHODBulkPassReceivers(GatePassRequest request, List<String> receiverIds) {
         try {
             String message = String.format("A Gate Pass QR has been issued to you by HOD %s.", request.getStudentName());

@@ -118,6 +118,7 @@ public class GatePassRequestService {
         if (assignedHodCode == null) {
             log.warn("No HOD found for department: {}. Staff request will be submitted without HOD assignment.", department);
         }
+        String assignedHrCode = departmentLookupService.findActiveHR();
         
         // Create request
         GatePassRequest request = new GatePassRequest();
@@ -132,6 +133,7 @@ public class GatePassRequestService {
         request.setHodApproval(GatePassRequest.ApprovalStatus.PENDING);
         request.setAssignedStaffCode(staffCode); // Self-assigned
         request.setAssignedHodCode(assignedHodCode);
+        request.setAssignedHrCode(assignedHrCode);
         request.setStaffApprovedBy(staffCode);
         request.setStaffApprovalDate(LocalDateTime.now());
         request.setAttachmentUri(attachmentUri);
@@ -266,27 +268,38 @@ public class GatePassRequestService {
             request.setHodRemark(hodRemark.trim());
         }
         
-        // Check if both approvals are complete
+        boolean requiresHrAfterHod = "STAFF".equals(request.getUserType()) || "HOD".equals(request.getUserType());
         if (request.getStaffApproval() == GatePassRequest.ApprovalStatus.APPROVED) {
-            request.setStatus(GatePassRequest.RequestStatus.APPROVED);
-            
-            // Generate QR code after HOD approval
-            if ("BULK".equals(request.getPassType())) {
-                log.info("Generating QR code for approved bulk pass request {}", requestId);
-                try {
-                    generateBulkPassQRCode(request);
-                } catch (Exception e) {
-                    log.error("Error generating QR code for bulk pass", e);
-                    throw new RuntimeException("Failed to generate QR code: " + e.getMessage());
+            if (requiresHrAfterHod) {
+                if (request.getAssignedHrCode() == null || request.getAssignedHrCode().isBlank()) {
+                    String assignedHrCode = departmentLookupService.findActiveHR();
+                    if (assignedHrCode == null) {
+                        throw new RuntimeException("No active HR found in the system");
+                    }
+                    request.setAssignedHrCode(assignedHrCode);
                 }
+                request.setStatus(GatePassRequest.RequestStatus.PENDING_HR);
+                request.setHrApproval(GatePassRequest.ApprovalStatus.PENDING);
             } else {
-                // Generate QR code for SINGLE passes
-                log.info("Generating QR code for approved single pass request {}", requestId);
-                try {
-                    generateSinglePassQRCode(request);
-                } catch (Exception e) {
-                    log.error("Error generating QR code for single pass", e);
-                    throw new RuntimeException("Failed to generate QR code: " + e.getMessage());
+                request.setStatus(GatePassRequest.RequestStatus.APPROVED);
+                
+                // Generate QR code after HOD approval for student-only flow
+                if ("BULK".equals(request.getPassType())) {
+                    log.info("Generating QR code for approved bulk pass request {}", requestId);
+                    try {
+                        generateBulkPassQRCode(request);
+                    } catch (Exception e) {
+                        log.error("Error generating QR code for bulk pass", e);
+                        throw new RuntimeException("Failed to generate QR code: " + e.getMessage());
+                    }
+                } else {
+                    log.info("Generating QR code for approved single pass request {}", requestId);
+                    try {
+                        generateSinglePassQRCode(request);
+                    } catch (Exception e) {
+                        log.error("Error generating QR code for single pass", e);
+                        throw new RuntimeException("Failed to generate QR code: " + e.getMessage());
+                    }
                 }
             }
         }
@@ -318,31 +331,37 @@ public class GatePassRequestService {
                 log.warn("Email notification setup failed (non-critical): {}", e.getMessage());
             }
         } else if ("STAFF".equals(saved.getUserType())) {
-            notificationService.notifyStaffOfHODApproval(saved);
-            // Email staff — gate pass fully approved (fire-and-forget)
-            try {
-                staffRepository.findByStaffCode(saved.getRegNo()).ifPresent(staff -> {
-                    if (staff.getEmail() != null && !staff.getEmail().isBlank()) {
-                        new Thread(() -> {
-                            try {
-                                emailService.sendGatePassStatusEmail(
-                                    staff.getEmail(), staff.getStaffName(),
-                                    "Gate Pass Approved ✓", saved.getPurpose(),
-                                    "Your gate pass has been approved by HOD. Your QR code is ready — open the app to view it."
-                                );
-                            } catch (Exception ex) {
-                                log.warn("Email send failed for HOD approval (non-critical): {}", ex.getMessage());
-                            }
-                        }).start();
-                    }
-                });
-            } catch (Exception e) {
-                log.warn("Email notification setup failed (non-critical): {}", e.getMessage());
-            }
-            
-            // If it's a bulk pass, notify allParticipants
-            if ("BULK".equals(saved.getPassType())) {
-                notificationService.notifyBulkParticipants(saved);
+            if (saved.getStatus() == GatePassRequest.RequestStatus.PENDING_HR) {
+                try {
+                    notificationService.notifyHROfNewHODRequest(saved);
+                } catch (Exception e) {
+                    log.error("Failed to notify HR of staff request awaiting HR approval for request {}", requestId, e);
+                }
+            } else {
+                notificationService.notifyStaffOfHODApproval(saved);
+                try {
+                    staffRepository.findByStaffCode(saved.getRegNo()).ifPresent(staff -> {
+                        if (staff.getEmail() != null && !staff.getEmail().isBlank()) {
+                            new Thread(() -> {
+                                try {
+                                    emailService.sendGatePassStatusEmail(
+                                        staff.getEmail(), staff.getStaffName(),
+                                        "Gate Pass Approved ✓", saved.getPurpose(),
+                                        "Your gate pass has been approved. Your QR code is ready — open the app to view it."
+                                    );
+                                } catch (Exception ex) {
+                                    log.warn("Email send failed for approval (non-critical): {}", ex.getMessage());
+                                }
+                            }).start();
+                        }
+                    });
+                } catch (Exception e) {
+                    log.warn("Email notification setup failed (non-critical): {}", e.getMessage());
+                }
+                
+                if ("BULK".equals(saved.getPassType())) {
+                    notificationService.notifyBulkParticipants(saved);
+                }
             }
         }
         
@@ -986,7 +1005,7 @@ public class GatePassRequestService {
         GatePassRequest saved = gatePassRequestRepository.save(request);
         log.info("Request {} approved by HR", requestId);
         
-        // Send notification to HOD (QR ready)
+        // Send notification after HR decision
         if ("HOD".equals(saved.getUserType())) {
             notificationService.notifyHODOfHRApproval(saved);
             
@@ -994,6 +1013,8 @@ public class GatePassRequestService {
             if ("BULK".equals(saved.getPassType())) {
                 notificationService.notifyBulkParticipants(saved);
             }
+        } else if ("STAFF".equals(saved.getUserType())) {
+            notificationService.notifyStaffOfHRApproval(saved);
         }
         
         return saved;
@@ -1028,9 +1049,11 @@ public class GatePassRequestService {
         GatePassRequest saved = gatePassRequestRepository.save(request);
         log.info("Request {} rejected by HR", requestId);
         
-        // Send notification to HOD
+        // Send notification after HR rejection
         if ("HOD".equals(saved.getUserType())) {
             notificationService.notifyHODOfHRRejection(saved);
+        } else if ("STAFF".equals(saved.getUserType())) {
+            notificationService.notifyStaffOfHRRejection(saved);
         }
         
         return saved;

@@ -329,7 +329,13 @@ const NewHODDashboard: React.FC<NewHODDashboardProps> = ({
                       {request.passType === 'BULK' ? (request.requestedByStaffName || `Staff: ${request.requestedByStaffCode}`) : request.passType === 'VISITOR' ? (request.visitorName || request.studentName || 'Visitor') : request.studentName || 'Unknown'}
                     </Text>
                     <View style={[styles.passTypePill, { backgroundColor: theme.surfaceHighlight, borderColor: theme.border }]}>
-                      <Text style={[styles.passTypePillText, { color: theme.text }]}>{request.passType === 'BULK' ? 'Bulk Gatepass' : request.passType === 'VISITOR' ? 'Visitor Request' : 'Single Gatepass'}</Text>
+                      <Text style={[styles.passTypePillText, { color: theme.text }]}>
+                        {request.passType === 'BULK'
+                          ? 'Bulk Gatepass'
+                          : request.passType === 'VISITOR'
+                          ? `${(request.role || 'VISITOR').toUpperCase()} Request`
+                          : 'Single Gatepass'}
+                      </Text>
                     </View>
                   </View>
                   <Text style={[styles.studentIdSub, { color: theme.textSecondary }]}>

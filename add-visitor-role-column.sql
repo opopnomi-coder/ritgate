@@ -1,0 +1,6 @@
+ALTER TABLE Visitor
+ADD COLUMN role VARCHAR(20) NULL;
+
+UPDATE Visitor
+SET role = 'VISITOR'
+WHERE role IS NULL OR role = '';

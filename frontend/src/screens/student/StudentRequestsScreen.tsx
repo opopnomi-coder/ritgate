@@ -44,17 +44,33 @@ const StudentRequestsScreen: React.FC<StudentRequestsScreenProps> = ({ student, 
   }, [onTabChange]);
 
   useEffect(() => { loadRequests(); }, []);
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timer = setTimeout(() => loadRequests(), nextMidnight.getTime() - now.getTime() + 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const getRequestDate = (request: any) => request.requestDate || request.createdAt || request.exitDateTime;
+  const isToday = (dateValue?: string) => {
+    if (!dateValue) return false;
+    const d = new Date(dateValue);
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  };
+  const isUsedRequest = (request: any) =>
+    request.qrUsed === true || request.status === 'USED' || request.status === 'EXITED';
 
   const loadRequests = async () => {
     try {
       const response = await apiService.getStudentGatePassRequests(student.regNo);
       if (response.success && response.requests) {
-        const sorted = response.requests.sort((a: any, b: any) => {
-          if (a.status === 'APPROVED' && b.status !== 'APPROVED') return -1;
-          if (a.status !== 'APPROVED' && b.status === 'APPROVED') return 1;
-          return new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime();
-        });
-        setRequests(sorted);
+        const todayOnly = response.requests
+          .filter((r: any) => isToday(getRequestDate(r)))
+          .filter((r: any) => !isUsedRequest(r))
+          .sort((a: any, b: any) => new Date(getRequestDate(b)).getTime() - new Date(getRequestDate(a)).getTime());
+        setRequests(todayOnly);
       }
     } catch (error) {
       console.error('Error loading requests:', error);
@@ -90,7 +106,7 @@ const StudentRequestsScreen: React.FC<StudentRequestsScreenProps> = ({ student, 
   const renderCard = (request: any) => {
     const isBulk = request.requestType === 'BULK' || request.passType === 'BULK';
     const badge = getStatusBadge(request.status);
-    const dateStr = request.requestDate || request.exitDateTime || request.createdAt;
+    const dateStr = getRequestDate(request);
 
     return (
       <TouchableOpacity
@@ -175,6 +191,7 @@ const StudentRequestsScreen: React.FC<StudentRequestsScreenProps> = ({ student, 
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
         contentContainerStyle={styles.scrollContent}
       >
+        <View style={[styles.requestsContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         {filteredRequests.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="document-text-outline" size={64} color={theme.border} />
@@ -183,6 +200,7 @@ const StudentRequestsScreen: React.FC<StudentRequestsScreenProps> = ({ student, 
         ) : (
           filteredRequests.map(r => renderCard(r))
         )}
+        </View>
       </ScrollView>
 
       {/* Bottom nav */}
@@ -253,6 +271,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 16 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100 },
+  requestsContainer: { borderRadius: 16, borderWidth: 1, padding: 12 },
   empty: { paddingVertical: 80, alignItems: 'center' },
   emptyText: { fontSize: 16, fontWeight: '600', marginTop: 16 },
 

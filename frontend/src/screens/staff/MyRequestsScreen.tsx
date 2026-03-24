@@ -30,6 +30,19 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [selectedBulkId, setSelectedBulkId] = useState<number | null>(null);
 
+  const getRequestDate = (request: any) =>
+    request.passType === 'BULK'
+      ? (request.exitDateTime || request.createdAt || request.requestDate)
+      : (request.requestDate || request.createdAt);
+  const isToday = (dateValue?: string) => {
+    if (!dateValue) return false;
+    const d = new Date(dateValue);
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  };
+  const isUsedRequest = (request: any) =>
+    request.qrUsed === true || request.status === 'USED' || request.status === 'EXITED';
+
   const fetchRequests = async () => {
     try {
       const [singleResult, bulkResult] = await Promise.all([
@@ -39,14 +52,11 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
       let combined: any[] = [];
       if (singleResult.success) combined = [...((singleResult as any).requests || singleResult.data || [])];
       if (bulkResult.success) combined = [...combined, ...(bulkResult.requests || [])];
-      combined.sort((a, b) => {
-        if (a.status === 'APPROVED' && b.status !== 'APPROVED') return -1;
-        if (a.status !== 'APPROVED' && b.status === 'APPROVED') return 1;
-        const dateA = new Date(a.passType === 'BULK' ? (a.exitDateTime || a.createdAt) : (a.requestDate || a.createdAt)).getTime();
-        const dateB = new Date(b.passType === 'BULK' ? (b.exitDateTime || b.createdAt) : (b.requestDate || b.createdAt)).getTime();
-        return dateB - dateA;
-      });
-      setAllRequests(combined);
+      const todayOnly = combined
+        .filter((request) => isToday(getRequestDate(request)))
+        .filter((request) => !isUsedRequest(request))
+        .sort((a, b) => new Date(getRequestDate(b)).getTime() - new Date(getRequestDate(a)).getTime());
+      setAllRequests(todayOnly);
     } catch (error) {
       console.error('Error fetching requests:', error);
     } finally {
@@ -56,6 +66,13 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
   };
 
   useEffect(() => { fetchRequests(); }, []);
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timer = setTimeout(() => fetchRequests(), nextMidnight.getTime() - now.getTime() + 500);
+    return () => clearTimeout(timer);
+  }, []);
   const onRefresh = useCallback(() => { setRefreshing(true); fetchRequests(); }, []);
 
   const getStatusBadge = (status: string) => {
@@ -106,7 +123,7 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
     const isBulk = request.passType === 'BULK';
     const name = user.name || user.staffName || 'Staff';
     const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-    const dateStr = isBulk ? (request.exitDateTime || request.createdAt || request.requestDate) : (request.requestDate || request.createdAt);
+    const dateStr = getRequestDate(request);
 
     return (
       <TouchableOpacity style={[styles.requestCard, { backgroundColor: theme.surface }]} onPress={() => handleReviewRequest(request)} activeOpacity={0.85}>
@@ -196,6 +213,7 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} />}
         showsVerticalScrollIndicator={false}
       >
+        <View style={[styles.requestsContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         {allRequests.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={64} color={theme.textTertiary} />
@@ -209,6 +227,7 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
             </View>
           ))
         )}
+        </View>
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -222,12 +241,18 @@ const MyRequestsScreen: React.FC<MyRequestsScreenProps> = ({ user, onBack }) => 
           const s = selectedRequest.status;
           const approved = s === 'APPROVED';
           const rejected = s === 'REJECTED';
+          const hodDone = s === 'PENDING_HR' || approved || rejected;
           return [
             { label: 'Request Submitted', status: 'done' as const },
             {
               label: 'HOD Approval',
-              status: approved ? 'done' as const : rejected ? 'rejected' as const : 'pending' as const,
+              status: hodDone ? 'done' as const : rejected ? 'rejected' as const : 'pending' as const,
               remark: selectedRequest.hodRemark || selectedRequest.rejectionReason,
+            },
+            {
+              label: 'HR Approval',
+              status: approved ? 'done' as const : rejected ? 'rejected' as const : 'pending' as const,
+              remark: selectedRequest.hrRemark || (selectedRequest.hrApproval === 'REJECTED' ? selectedRequest.rejectionReason : undefined),
             },
           ];
         })() : []}
@@ -264,6 +289,7 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { marginTop: 12, fontSize: 14 },
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
+  requestsContainer: { borderRadius: 16, borderWidth: 1, padding: 12 },
   emptyState: { paddingVertical: 80, alignItems: 'center' },
   emptyStateText: { fontSize: 18, fontWeight: '600', marginTop: 16 },
   emptyStateSubtext: { fontSize: 14, marginTop: 8 },

@@ -175,19 +175,23 @@ public class VisitorGatepassService {
                 "URGENT"
             );
 
-            String visitDate = savedRequest.getVisitDate() != null ? savedRequest.getVisitDate().toString() : "";
-            String visitTime = savedRequest.getVisitTime() != null ? savedRequest.getVisitTime().toString() : "";
+            String registeredBy = savedRequest.getRegisteredBy();
+            boolean websiteOrigin = registeredBy != null && registeredBy.startsWith("WEB-");
+            if (!websiteOrigin) {
+                String visitDate = savedRequest.getVisitDate() != null ? savedRequest.getVisitDate().toString() : "";
+                String visitTime = savedRequest.getVisitTime() != null ? savedRequest.getVisitTime().toString() : "";
 
-            emailService.sendVisitorPassEmail(
-                savedRequest.getEmail(),
-                savedRequest.getName(),
-                savedRequest.getQrCode(),
-                savedRequest.getManualCode(),
-                personToMeet,
-                savedRequest.getDepartment(),
-                visitDate,
-                visitTime
-            );
+                emailService.sendVisitorPassEmail(
+                    savedRequest.getEmail(),
+                    savedRequest.getName(),
+                    savedRequest.getQrCode(),
+                    savedRequest.getManualCode(),
+                    personToMeet,
+                    savedRequest.getDepartment(),
+                    visitDate,
+                    visitTime
+                );
+            }
         } catch (Exception ignored) {
             // Do not block approval by email/notification.
         }
@@ -279,6 +283,15 @@ public class VisitorGatepassService {
     @Transactional(readOnly = true)
     public Optional<Visitor> getRequestById(Long id) {
         return visitorRepository.findById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Visitor> getRequestForMachine(Long requestId, String machineId) {
+        if (machineId == null || machineId.isBlank()) {
+            return Optional.empty();
+        }
+        return visitorRepository.findById(requestId)
+            .filter(v -> machineId.equals(v.getRegisteredBy()));
     }
     
     /**

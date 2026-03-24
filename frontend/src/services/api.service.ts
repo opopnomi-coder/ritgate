@@ -384,6 +384,19 @@ class ApiService {
     catch (e: any) { return { success: false, message: e.message || 'Failed to reject' }; }
   }
 
+  async getHRExits(fromDate?: string, toDate?: string): Promise<{ success: boolean; exits?: any[]; message?: string }> {
+    try {
+      const qp = new URLSearchParams();
+      if (fromDate) qp.append('fromDate', fromDate);
+      if (toDate) qp.append('toDate', toDate);
+      const suffix = qp.toString() ? `?${qp.toString()}` : '';
+      const data = await this.makeRequest(`${this.baseURL}/hr/exits${suffix}`, { method: 'GET' });
+      return { success: data.success !== false, exits: data.exits || [] };
+    } catch (e: any) {
+      return { success: false, exits: [], message: e.message || 'Failed to load exits' };
+    }
+  }
+
   // ── Security / Entry-Exit ─────────────────────────────────────────────────
   async scanQRCode(qrData: string, securityId: string): Promise<ApiResponse> {
     try { return await this.makeRequest(`${this.baseURL}/security/scan`, { method: 'POST', body: JSON.stringify({ qrData, securityId }) }); }
@@ -637,6 +650,7 @@ class ApiService {
 
   async registerVisitorForSecurity(d: {
     name: string; phone: string; email: string; numberOfPeople: number;
+    role?: 'VISITOR' | 'VENDOR';
     departmentId: string; staffCode: string; purpose: string;
     vehicleNumber?: string; securityId: string;
   }): Promise<ApiResponse> {

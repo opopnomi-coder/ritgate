@@ -10,6 +10,7 @@ import {
   StatusBar,
   ActivityIndicator,
   Image,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +27,7 @@ import SinglePassDetailsModal from '../../components/SinglePassDetailsModal';
 import SuccessModal from '../../components/SuccessModal';
 import ErrorModal from '../../components/ErrorModal';
 import ConfirmationModal from '../../components/ConfirmationModal';
+import { exportStyledPdfReport } from '../../utils/pdfReport';
 
 interface NewHRDashboardProps {
   hr: HR;
@@ -43,7 +45,11 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
   const [requests, setRequests] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'PENDING' | 'APPROVED' | 'REJECTED'>('PENDING');
-  const [bottomTab, setBottomTab] = useState<'HOME' | 'PROFILE'>('HOME');
+  const [bottomTab, setBottomTab] = useState<'HOME' | 'EXITS' | 'PROFILE'>('HOME');
+  const [exitLogs, setExitLogs] = useState<any[]>([]);
+  const [rangeModalVisible, setRangeModalVisible] = useState(false);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -69,7 +75,19 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
   useEffect(() => {
     loadRequests();
     loadNotifications(hr.hrCode, 'hr');
+    loadExitLogs();
   }, []);
+
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const ms = nextMidnight.getTime() - now.getTime();
+    const timer = setTimeout(() => {
+      if (bottomTab === 'EXITS') loadExitLogs();
+    }, ms + 500);
+    return () => clearTimeout(timer);
+  }, [bottomTab]);
 
   const loadRequests = async () => {
     try {
@@ -123,7 +141,42 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
 
   const onRefresh = () => {
     setRefreshing(true);
-    loadRequests();
+    if (bottomTab === 'EXITS') loadExitLogs();
+    else loadRequests();
+  };
+
+  const loadExitLogs = async (rangeFrom?: string, rangeTo?: string) => {
+    try {
+      const response = await apiService.getHRExits(rangeFrom, rangeTo);
+      if (response.success) setExitLogs(response.exits || []);
+    } catch (error) {
+      console.error('Error loading HR exits:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const exportExitsPdf = async (rows: any[]) => {
+    await exportStyledPdfReport({
+      title: 'Staff & Student Exit Report',
+      subtitle: 'RIT Gate Management System',
+      columns: [
+        { key: 'userType', label: 'ROLE' },
+        { key: 'userId', label: 'ID' },
+        { key: 'name', label: 'NAME' },
+        { key: 'department', label: 'DEPARTMENT' },
+        { key: 'purpose', label: 'PURPOSE' },
+        { key: 'exitTime', label: 'EXIT TIME' },
+      ],
+      rows: rows.map((r: any) => ({
+        userType: r.userType || '-',
+        userId: r.userId || '-',
+        name: r.name || '-',
+        department: r.department || '-',
+        purpose: r.purpose || '-',
+        exitTime: formatDateShort(r.exitTime),
+      })),
+    });
   };
 
   const filteredRequests = requests.filter(request => {
@@ -257,6 +310,8 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
         </View>
       </View>
 
+      {bottomTab === 'HOME' && (
+      <>
       {/* Search Bar */}
       <ScrollView
         style={styles.content}
@@ -334,7 +389,11 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
                         : `${request.requestedByStaffName || request.hodCode || 'Staff'}`}
                     </Text>
                     <Text style={[styles.passTypeLabel, { color: theme.textSecondary }]}>
-                      {request.requestType === 'BULK' ? '(Bulk Gatepass)' : request.requestType === 'VISITOR' ? '(Visitor Request)' : '(Single Gatepass)'}
+                      {request.requestType === 'BULK'
+                        ? '(Bulk Gatepass)'
+                        : request.requestType === 'VISITOR'
+                        ? `(${(request.role || 'VISITOR').toUpperCase()} Request)`
+                        : '(Single Gatepass)'}
                     </Text>
                   </View>
                   <Text style={[styles.studentIdSub, { color: theme.textSecondary }]}>
@@ -416,6 +475,59 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
         )}
       </View>
       </ScrollView>
+      </>
+      )}
+
+      {bottomTab === 'EXITS' && (
+        <ScrollView
+          style={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.searchContainer, { backgroundColor: theme.surface }]}>
+            <Ionicons name="calendar-outline" size={20} color={theme.textTertiary} />
+            <Text style={[styles.searchInput, { color: theme.text }]}>Today&apos;s exits ({exitLogs.length})</Text>
+          </View>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity style={[styles.approveButton, { backgroundColor: theme.primary }]} onPress={() => setRangeModalVisible(true)}>
+              <Ionicons name="funnel-outline" size={16} color="#fff" />
+              <Text style={styles.approveButtonText}>From / To</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.rejectButton, { backgroundColor: theme.success }]} onPress={() => exportExitsPdf(exitLogs)}>
+              <Ionicons name="download-outline" size={16} color="#fff" />
+              <Text style={styles.rejectButtonText}>Download PDF</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.scrollContent}>
+            {exitLogs.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="log-out-outline" size={64} color={theme.border} />
+                <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No exits for selected date</Text>
+              </View>
+            ) : (
+              exitLogs.map((item) => (
+                <View key={`exit-${item.id}`} style={[styles.requestCard, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+                  <View style={styles.cardTopRow}>
+                    <View style={[styles.avatarContainer, { backgroundColor: theme.surfaceHighlight }]}>
+                      <Text style={[styles.cardAvatarText, { color: theme.textSecondary }]}>{getInitials(item.name || item.userId || 'NA')}</Text>
+                    </View>
+                    <View style={styles.headerMainInfo}>
+                      <Text style={[styles.requestStudentName, { color: theme.text }]}>{item.name || item.userId}</Text>
+                      <Text style={[styles.studentIdSub, { color: theme.textSecondary }]}>{item.userType} • {item.userId}</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.detailsBlock, { backgroundColor: theme.inputBackground }]}>
+                    <Text style={[styles.detailText, { color: theme.text }]}>{item.department || '-'}</Text>
+                    <Text style={[styles.detailText, { color: theme.text }]}>{item.purpose || 'General'}</Text>
+                    <Text style={[styles.detailText, { color: theme.textSecondary }]}>Exited: {formatDateShort(item.exitTime)}</Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        </ScrollView>
+      )}
 
       {/* Bottom Navigation */}
       <View style={[styles.bottomNav, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
@@ -423,6 +535,11 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
           <Ionicons name={bottomTab === 'HOME' ? 'home' : 'home-outline'} size={22} color={bottomTab === 'HOME' ? theme.primary : theme.textTertiary} />
           <Text style={[styles.navLabel, { color: theme.textTertiary }, bottomTab === 'HOME' && { color: theme.primary }]}>Home</Text>
           {bottomTab === 'HOME' && <View style={[styles.activeIndicator, { backgroundColor: theme.primary }]} />}
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={() => { setBottomTab('EXITS'); loadExitLogs(); }}>
+          <Ionicons name={bottomTab === 'EXITS' ? 'log-out' : 'log-out-outline'} size={22} color={bottomTab === 'EXITS' ? theme.primary : theme.textTertiary} />
+          <Text style={[styles.navLabel, { color: theme.textTertiary }, bottomTab === 'EXITS' && { color: theme.primary }]}>Exits</Text>
+          {bottomTab === 'EXITS' && <View style={[styles.activeIndicator, { backgroundColor: theme.primary }]} />}
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={() => { setBottomTab('PROFILE'); onNavigate('PROFILE'); }}>
           <Ionicons name={bottomTab === 'PROFILE' ? 'person' : 'person-outline'} size={22} color={bottomTab === 'PROFILE' ? theme.primary : theme.textTertiary} />
@@ -502,6 +619,39 @@ const NewHRDashboard: React.FC<NewHRDashboardProps> = ({
           </View>
         </View>
       )}
+
+      <Modal visible={rangeModalVisible} transparent animationType="fade" onRequestClose={() => setRangeModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.rangeModalCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Filter Exit Date Range</Text>
+            <TextInput
+              style={[styles.modalInput, { color: theme.text, borderColor: theme.border }]}
+              value={fromDate}
+              onChangeText={setFromDate}
+              placeholder="From (YYYY-MM-DD)"
+              placeholderTextColor={theme.textTertiary}
+            />
+            <TextInput
+              style={[styles.modalInput, { color: theme.text, borderColor: theme.border }]}
+              value={toDate}
+              onChangeText={setToDate}
+              placeholder="To (YYYY-MM-DD)"
+              placeholderTextColor={theme.textTertiary}
+            />
+            <View style={styles.actionButtons}>
+              <TouchableOpacity style={styles.rejectButton} onPress={() => setRangeModalVisible(false)}>
+                <Text style={styles.rejectButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.approveButton} onPress={() => {
+                setRangeModalVisible(false);
+                loadExitLogs(fromDate || undefined, toDate || undefined);
+              }}>
+                <Text style={styles.approveButtonText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -558,6 +708,8 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: '700' },
   closeButton: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   modalContent: { flex: 1, maxHeight: '100%' },
+  modalInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
+  rangeModalCard: { borderRadius: 16, padding: 16, marginHorizontal: 24 },
   modalScrollContent: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
   modalSection: { marginBottom: 20 },
   sectionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 12, letterSpacing: 0.5 },

@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.stream.Collectors;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/hr")
@@ -29,6 +31,7 @@ public class HRController {
     private final com.example.visitor.repository.HRRepository hrRepository;
     private final VisitorRepository visitorRepository;
     private final VisitorRequestService visitorRequestService;
+    private final com.example.visitor.repository.RailwayExitLogRepository railwayExitLogRepository;
     
     // ==================== HR APPROVAL ENDPOINTS ====================
     
@@ -332,6 +335,7 @@ public class HRController {
                 map.put("visitorPhone", v.getPhone());
                 map.put("visitorEmail", v.getEmail());
                 map.put("department", v.getDepartment());
+                map.put("role", v.getRole() != null ? v.getRole() : "VISITOR");
                 map.put("purpose", v.getPurpose());
                 map.put("numberOfPeople", v.getNumberOfPeople());
                 map.put("vehicleNumber", v.getVehicleNumber());
@@ -401,6 +405,55 @@ public class HRController {
             log.error("❌ Error fetching HR profile: {}", e.getMessage());
             e.printStackTrace();
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/exits")
+    public ResponseEntity<?> getExits(
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        try {
+            LocalDate from = (fromDate == null || fromDate.isBlank()) ? LocalDate.now() : LocalDate.parse(fromDate);
+            LocalDate to = (toDate == null || toDate.isBlank()) ? from : LocalDate.parse(toDate);
+            LocalDateTime fromTs = from.atStartOfDay();
+            LocalDateTime toTs = to.plusDays(1).atStartOfDay().minusNanos(1);
+
+            List<com.example.visitor.entity.RailwayExitLog> exits =
+                railwayExitLogRepository.findByExitTimeBetweenOrderByExitTimeDesc(fromTs, toTs)
+                    .stream()
+                    .filter(e -> {
+                        String t = e.getUserType();
+                        return "STUDENT".equalsIgnoreCase(t) || "STAFF".equalsIgnoreCase(t) || "HOD".equalsIgnoreCase(t);
+                    })
+                    .collect(Collectors.toList());
+
+            List<Map<String, Object>> result = exits.stream().map(e -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", e.getId());
+                map.put("userType", e.getUserType());
+                map.put("userId", e.getUserId());
+                map.put("name", e.getPersonName());
+                map.put("department", e.getDepartment());
+                map.put("purpose", e.getPurpose());
+                map.put("exitTime", e.getExitTime());
+                map.put("location", e.getLocation() != null ? e.getLocation() : e.getScanLocation());
+                map.put("verifiedBy", e.getVerifiedBy());
+                return map;
+            }).collect(Collectors.toList());
+
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "fromDate", from.toString(),
+                "toDate", to.toString(),
+                "count", result.size(),
+                "exits", result
+            ));
+        } catch (Exception e) {
+            log.error("Error fetching exit logs for HR", e);
+            return ResponseEntity.internalServerError().body(Map.of(
+                "success", false,
+                "message", "Failed to fetch exits: " + e.getMessage()
+            ));
         }
     }
 
